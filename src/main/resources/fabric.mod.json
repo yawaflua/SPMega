@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "spmega",
+  "version": "${version}",
+  "name": "SPMega",
+  "description": "yawaflua`s SPRadar+SPMHelper mod, thats make a lot!",
+  "authors": [],
+  "contact": {},
+  "license": "CC-BY-SA-4.0",
+  "icon": "assets/spmega/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-datagen": [
+      "git.yawaflua.tech.spmega.client.SPMegaDataGenerator"
+    ],
+    "client": [
+      "git.yawaflua.tech.spmega.client.SPMegaClient"
+    ],
+    "main": [
+      "git.yawaflua.tech.spmega.SPMega"
+    ]
+  },
+  "mixins": [
+    "spmega.mixins.json",
+    {
+      "config": "spmega.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}",
+    "cloth-config2": ">=${cloth_config_version}"
+  }
+}

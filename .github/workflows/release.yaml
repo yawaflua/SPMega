@@ -1,0 +1,102 @@
+name: Release CI
+
+on:
+  release:
+    types:
+      - published
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload-mod:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.release.tag_name }}" ]; then
+            echo "value=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check release version (>= 1.21.11)
+        id: version_check
+        shell: bash
+        run: |
+          TAG="${{ steps.tag.outputs.value }}"
+          VERSION="${TAG#v}"
+          MIN_VERSION="1.21.11"
+
+          if [ "$(printf '%s\n%s\n' "$MIN_VERSION" "$VERSION" | sort -V | head -n1)" = "$MIN_VERSION" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK 21
+        if: steps.version_check.outputs.should_build == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Grant execute permission for Gradle
+        if: steps.version_check.outputs.should_build == 'true'
+        run: chmod +x ./gradlew
+
+      - name: Build mod
+        if: steps.version_check.outputs.should_build == 'true'
+        run: ./gradlew clean build
+
+      - name: Upload jars to GitHub release assets
+        if: steps.version_check.outputs.should_build == 'true' && github.server_url == 'https://github.com'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.value }}
+          files: |
+            build/libs/*.jar
+
+      - name: Upload jars to Gitea release assets
+        if: steps.version_check.outputs.should_build == 'true' && github.server_url != 'https://github.com'
+        shell: bash
+        env:
+          API: ${{ github.api_url }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.value }}
+          TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          release_json="$(curl -fsS -H "Authorization: token $TOKEN" "$API/repos/$REPO/releases/tags/$TAG" || true)"
+
+          if [ -z "$release_json" ]; then
+            release_json="$(curl -fsS -X POST \
+              -H "Authorization: token $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\",\"draft\":false,\"prerelease\":false}" \
+              "$API/repos/$REPO/releases")"
+          fi
+
+          release_id="$(python -c 'import sys,json; print(json.load(sys.stdin)["id"])' <<< "$release_json")"
+
+          for file in build/libs/*.jar; do
+            [ -f "$file" ] || continue
+            name="$(basename "$file")"
+            curl -fsS -X POST \
+              -H "Authorization: token $TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$file" \
+              "$API/repos/$REPO/releases/$release_id/assets?name=$name"
+          done
+
