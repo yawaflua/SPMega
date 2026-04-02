@@ -2,7 +2,7 @@ LICENSE Agreement
 
 Copyright (c) 2024-2026 Dmitrii 'yawaflua' Shimanskii. All rights reserved.
 
-This project is licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0)
+This project is licensed under the Creative Commons Attribution 4.0 International License (CC BY-NC-ND 4.0)
 Subject to the additional restrictive conditions below:
 
 1. PROHIBITION OF USE:

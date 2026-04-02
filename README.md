@@ -34,7 +34,7 @@ SPMega - клиентский Fabric-мод с банковым UI для раб
 ## Сборка (PowerShell)
 
 ```powershell
-.\gradlew.bat classes
+.\gradlew.bat build
 ```
 
 ## Дорожная карта

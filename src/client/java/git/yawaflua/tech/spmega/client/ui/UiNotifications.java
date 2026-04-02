@@ -75,7 +75,7 @@ public final class UiNotifications {
         int x = width - boxWidth - 10;
         int y = height - boxHeight - 10;
 
-        context.fill(x, y, x + boxWidth, y + boxHeight, Color.GRAY.getRGB());
+        context.fill(x, y, x + boxWidth, y + boxHeight, Color.DARK_GRAY.getRGB());
         context.drawTextWithShadow(textRenderer, currentText, x + padding, y + padding, Color.WHITE.getRGB());
     }
 

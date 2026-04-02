@@ -6,8 +6,8 @@
   "description": "yawaflua`s SPRadar+SPMHelper mod, thats make a lot!",
   "authors": [],
   "contact": {},
-  "license": "CC-BY-SA-4.0",
-  "icon": "assets/spmega/icon.png",
+  "license": "CC BY-NC-ND 4.0",
+  "icon": "icon.png",
   "environment": "client",
   "entrypoints": {
     "fabric-datagen": [
