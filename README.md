@@ -1,50 +1,44 @@
 # SPMega
 
-Клиентский мод Fabric с банковым UI, интеграцией с API `spworlds.ru` и локальным SQLite-кэшем.
+SPMega - клиентский Fabric-мод с банковым UI для работы с картами и переводами через API `spworlds.ru`.
 
-## Что реализовано
+## Возможности
 
-- Открытие меню по `P` и через кнопку `SPMega` в меню `Esc`
+- Открытие главного меню мода по клавише `P` и кнопкой `SPMega` в меню `Esc`
 - Экран `Карты`:
-    - список карт из локальной БД
-    - удаление карты
-    - обновление данных карты через API
-    - добавление карты из конфига (`token.cardId` + `token.cardToken`)
+  - список карт из локальной базы
+  - добавление новой карты (ввод `cardId` + `cardToken`)
+  - удаление карты
+  - обновление карты через API
 - Экран `Оплата`:
-    - перевод по номеру карты
-    - при вводе ника: загрузка карт игрока из API и выбор карты получателя
-    - выполнение транзакции через API
-- Локальная БД `config/spmega.db`:
-    - `cards` (id, token, number, name, balance, owner_uuid)
-    - `transfer_history` (локальная история переводов)
-- Автообновление балансов при входе на сервер
-
-## Ключевые файлы
-
-- `src/main/java/git/yawaflua/tech/spmega/api/SPWorldsApiClient.java`
-- `src/client/java/git/yawaflua/tech/spmega/client/ui/service/BankUiService.java`
-- `src/client/java/git/yawaflua/tech/spmega/client/ui/service/BankDatabase.java`
-- `src/client/java/git/yawaflua/tech/spmega/client/ui/PaymentScreen.java`
-- `src/client/java/git/yawaflua/tech/spmega/client/ui/CardScreen.java`
+  - перевод по номеру карты
+  - ввод ника получателя с автопоиском карт игрока
+- Быстрая оплата по табличкам:
+  - Shift + клик по табличке
+  - если найден отдельный 5-значный номер, открывается окно оплаты с подставленным получателем
 
 ## Конфиг
 
 Файл: `config/spmega.properties`
 
-- `api.domain=https://spworlds.ru`
-- `token.cardId=<UUID карты>`
-- `token.cardToken=<токен карты>`
+- `sign.quickPay.enabled=true|false` - включить/выключить Shift-клик по табличке
 
-При добавлении новой карты через UI выполняется проверка владельца через `GET /api/public/accounts/me`.
-Если UUID не совпадает с UUID игрока, показывается сообщение:
-`Вы не владелец карты. Часть функций может быть ограничена.`
+При добавлении карты выполняется проверка через `GET /api/public/accounts/me`:
 
-## Проверка сборки (PowerShell)
+- карта должна присутствовать в `cards` по `id`
+- если `minecraftUUID` не совпадает с UUID игрока, показывается предупреждение:
+  `Вы не владелец карты. Часть функций может быть ограничена.`
+
+###### позже это станет ограничением для синхронизации карт/истории с облаком
+
+## Сборка (PowerShell)
 
 ```powershell
-$javaHome = 'C:/Users/yawaflua/AppData/Roaming/PrismLauncher/java/java-runtime-delta/'
-$env:JAVA_HOME = $javaHome
-$env:Path = "$($env:JAVA_HOME)bin;$env:Path"
-Set-Location 'C:\Users\yawaflua\IdeaProjects\untitled'
 .\gradlew.bat classes
 ```
+
+## Дорожная карта
+
+- [ ] Синхронизация карт/истории с облаком
+- [ ] Получение уведомлений о переводах прямо в Minecraft, опять-таки, через облако.
+- [ ] Отображение важных игроков в табе(банкиры, фсбшники и прочее) с возможностью редактирования

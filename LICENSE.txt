@@ -13,11 +13,5 @@ Subject to the additional restrictive conditions below:
    In all allowed cases of use, the authorship of Dmitrii 'yawaflua' Shimanskii must be
    clearly and explicitly credited.
 
-3. SPECIAL PROVISIONS FOR EXTERNAL CODE:
-   Parts of the code affiliated with or derived from the repository
-   https://github.com/Zadudoder/SPmHelper/commit/8b8139efdef4d2466a65a6ae1218521564116db1
-   are distributed under the terms of the MIT License (MIT) as applied to forks.
-   The original MIT license conditions for those specific parts must be preserved.
-
-For permissions and inquiries, contact the author.
+For permissions and inquiries, contact the author by using email spmega-contact@yawaflua.tech.
 
