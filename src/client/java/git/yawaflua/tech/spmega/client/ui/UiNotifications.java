@@ -12,11 +12,11 @@ import net.minecraft.text.Text;
 import java.awt.*;
 
 public final class UiNotifications {
-    private static final long DEFAULT_DURATION_MS = 3500L;
+    private static final int DEFAULT_DURATION_TICKS = 70;
     private static final UiNotifications INSTANCE = new UiNotifications();
 
     private Text currentText = Text.empty();
-    private long visibleUntilMs;
+    private int remainingTicks;
 
     private UiNotifications() {
     }
@@ -31,7 +31,6 @@ public final class UiNotifications {
         }
 
         try {
-            System.out.println(raw);
             var reader = new JsonReader(new java.io.StringReader(raw));
             reader.setStrictness(Strictness.LENIENT);
 
@@ -42,7 +41,6 @@ public final class UiNotifications {
             }
 
         } catch (Exception ignored) {
-            System.out.println(ignored.getMessage());
             // fallback to raw text
         }
 
@@ -54,7 +52,7 @@ public final class UiNotifications {
             return;
         }
         currentText = text;
-        visibleUntilMs = System.currentTimeMillis() + DEFAULT_DURATION_MS;
+        remainingTicks = DEFAULT_DURATION_TICKS;
     }
 
     public synchronized void showMessage(String message) {
@@ -65,10 +63,7 @@ public final class UiNotifications {
     }
 
     public synchronized void render(DrawContext context, TextRenderer textRenderer, int width, int height) {
-        if (currentText == null || currentText.getString().isBlank()) {
-            return;
-        }
-        if (System.currentTimeMillis() > visibleUntilMs) {
+        if (!isVisible()) {
             return;
         }
 
@@ -82,6 +77,21 @@ public final class UiNotifications {
 
         context.fill(x, y, x + boxWidth, y + boxHeight, Color.GRAY.getRGB());
         context.drawTextWithShadow(textRenderer, currentText, x + padding, y + padding, Color.WHITE.getRGB());
+    }
+
+    public synchronized void tick() {
+        if (remainingTicks <= 0) {
+            return;
+        }
+        remainingTicks--;
+        if (remainingTicks <= 0) {
+            currentText = Text.empty();
+            remainingTicks = 0;
+        }
+    }
+
+    public synchronized boolean isVisible() {
+        return currentText != null && !currentText.getString().isBlank() && remainingTicks > 0;
     }
 }
 

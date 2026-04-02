@@ -99,7 +99,6 @@ public class CardScreen extends Screen {
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, 24, 0xFFFFFF);
         context.drawTextWithShadow(this.textRenderer, Text.literal("Список карт"), leftX, startY - 18, 0xBFBFBF);
         context.drawTextWithShadow(this.textRenderer, Text.literal("Действия"), rightX, startY - 18, 0xBFBFBF);
-        notifications.render(context, this.textRenderer, this.width, this.height);
     }
 
     private void updateCardButtonStates() {

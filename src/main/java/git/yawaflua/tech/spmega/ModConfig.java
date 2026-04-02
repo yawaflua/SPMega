@@ -1,7 +1,7 @@
 package git.yawaflua.tech.spmega;
 
 public record ModConfig(String apiDomain, String apiToken, boolean signQuickPayEnabled) {
-    public static final String DEFAULT_API_DOMAIN = "https://spworlds.ru";
+    public static final String DEFAULT_API_DOMAIN = "https://spmega-api.yawaflua.tech";
     public static final String DEFAULT_API_TOKEN = "ulBKE9MWEtIGiPAhXV69I28W9BRiSrV3";
     public static final boolean DEFAULT_SIGN_QUICK_PAY_ENABLED = true;
 

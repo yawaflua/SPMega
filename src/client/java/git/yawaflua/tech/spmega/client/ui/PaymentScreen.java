@@ -189,7 +189,6 @@ public class PaymentScreen extends Screen {
         }
 
         context.drawCenteredTextWithShadow(this.textRenderer, senderCardText, centerX, this.height - 20, 0xA9E5A9);
-        notifications.render(context, this.textRenderer, this.width, this.height);
     }
 
     private void submit() {

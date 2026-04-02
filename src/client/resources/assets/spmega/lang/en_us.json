@@ -1,5 +1,19 @@
 {
   "category.spmega": "SPMega",
-  "key.spmega.open_menu": "Open SPMega Menu"
+  "key.spmega.open_menu": "Open SPMega Menu",
+  "key.spmega.scan_qr": "Scan QR from Screen",
+  "button.spmega.scan_qr": "Scan QR",
+  "button.spmega.qr.cancel": "Cancel",
+  "button.spmega.qr.open_link": "Open Link",
+  "screen.spmega.qr.confirm_title": "Link confirmation",
+  "screen.spmega.qr.accept_link": "Open this link?",
+  "message.spmega.qr.capture_failed": "Failed to capture Minecraft screen",
+  "message.spmega.qr.not_found": "QR code not found on screen",
+  "message.spmega.qr.invalid_url": "QR does not contain a valid http/https URL",
+  "message.spmega.qr.opened": "Opened: %s",
+  "message.spmega.qr.error": "Failed to scan QR from screen",
+  "message.spmega.qr.hover_tip": "Click to open link",
+  "message.spmega.qr.found_link": "Found link: %s",
+  "message.spmega.qr.failed_open": "Failed to open link"
 }
 

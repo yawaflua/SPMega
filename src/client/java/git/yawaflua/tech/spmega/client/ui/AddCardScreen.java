@@ -67,7 +67,6 @@ public class AddCardScreen extends Screen {
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, 24, 0xFFFFFF);
         context.drawTextWithShadow(this.textRenderer, Text.literal("Card ID (UUID):"), centerX - 140, startY - 10, 0xCCCCCC);
         context.drawTextWithShadow(this.textRenderer, Text.literal("Card Token:"), centerX - 140, startY + 18, 0xCCCCCC);
-        notifications.render(context, this.textRenderer, this.width, this.height);
     }
 
     private void submit() {

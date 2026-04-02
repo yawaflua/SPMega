@@ -50,6 +50,8 @@ dependencies {
     }
 
     include(implementation("org.xerial:sqlite-jdbc:3.46.1.3"))
+    include(clientImplementation("com.google.zxing:core:${project.zxing_version}"))
+    include(clientImplementation("com.google.zxing:javase:${project.zxing_version}"))
 }
 
 processResources {

@@ -51,52 +51,72 @@ public final class SPWorldsApiClient {
     public CardInfo getCardInfo(CardAuth auth) throws IOException, InterruptedException {
         HttpRequest request = requestBuilder("/api/public/card", auth).GET().build();
         String body = send(request);
-        JsonObject json = JsonParser.parseString(body).getAsJsonObject();
-        long balance = json.has("balance") ? json.get("balance").getAsLong() : 0L;
-        String webhook = json.has("webhook") && !json.get("webhook").isJsonNull()
-                ? json.get("webhook").getAsString()
-                : "";
-        return new CardInfo(balance, webhook);
+        try {
+            JsonObject json = JsonParser.parseString(body).getAsJsonObject();
+            long balance = json.has("balance") ? json.get("balance").getAsLong() : 0L;
+            String webhook = json.has("webhook") && !json.get("webhook").isJsonNull()
+                    ? json.get("webhook").getAsString()
+                    : "";
+            return new CardInfo(balance, webhook);
+        } catch (Exception e) {
+            System.out.println("Failed to parse card info response: " + e.getMessage());
+            System.out.println(body);
+
+            throw new IOException("Failed to parse card info response", e);
+        }
     }
 
     public List<PlayerCard> getPlayerCards(String username, CardAuth auth) throws IOException, InterruptedException {
         HttpRequest request = requestBuilder("/api/public/accounts/" + username + "/cards", auth).GET().build();
         String body = send(request);
-        JsonArray json = JsonParser.parseString(body).getAsJsonArray();
+        try {
+            JsonArray json = JsonParser.parseString(body).getAsJsonArray();
 
-        List<PlayerCard> cards = new ArrayList<>();
-        for (JsonElement element : json) {
-            JsonObject card = element.getAsJsonObject();
-            String name = card.has("name") ? card.get("name").getAsString() : "";
-            String number = card.has("number") ? card.get("number").getAsString() : "";
-            cards.add(new PlayerCard(name, number));
+            List<PlayerCard> cards = new ArrayList<>();
+            for (JsonElement element : json) {
+                JsonObject card = element.getAsJsonObject();
+                String name = card.has("name") ? card.get("name").getAsString() : "";
+                String number = card.has("number") ? card.get("number").getAsString() : "";
+                cards.add(new PlayerCard(name, number));
+            }
+            return cards;
+        } catch (Exception e) {
+            System.out.println("Failed to parse player cards response: " + e.getMessage());
+            System.out.println(body);
+            throw new IOException("Failed to parse player cards response", e);
         }
-        return cards;
     }
 
     public AccountMe getAccountMe(CardAuth auth) throws IOException, InterruptedException {
         HttpRequest request = requestBuilder("/api/public/accounts/me", auth).GET().build();
         String body = send(request);
-        JsonObject json = JsonParser.parseString(body).getAsJsonObject();
+        try {
+            JsonObject json = JsonParser.parseString(body).getAsJsonObject();
 
-        String id = json.has("id") ? json.get("id").getAsString() : "";
-        String username = json.has("username") ? json.get("username").getAsString() : "";
-        String minecraftUuid = json.has("minecraftUUID") ? json.get("minecraftUUID").getAsString() : "";
+            String id = json.has("id") ? json.get("id").getAsString() : "";
+            String username = json.has("username") ? json.get("username").getAsString() : "";
+            String minecraftUuid = json.has("minecraftUUID") ? json.get("minecraftUUID").getAsString() : "";
 
-        List<AccountCard> cards = new ArrayList<>();
-        if (json.has("cards") && json.get("cards").isJsonArray()) {
-            for (JsonElement element : json.getAsJsonArray("cards")) {
-                JsonObject card = element.getAsJsonObject();
-                cards.add(new AccountCard(
-                        getString(card, "id"),
-                        getString(card, "name"),
-                        getString(card, "number"),
-                        card.has("color") && !card.get("color").isJsonNull() ? card.get("color").getAsInt() : 0
-                ));
+            List<AccountCard> cards = new ArrayList<>();
+            if (json.has("cards") && json.get("cards").isJsonArray()) {
+                for (JsonElement element : json.getAsJsonArray("cards")) {
+                    JsonObject card = element.getAsJsonObject();
+                    cards.add(new AccountCard(
+                            getString(card, "id"),
+                            getString(card, "name"),
+                            getString(card, "number"),
+                            card.has("color") && !card.get("color").isJsonNull() ? card.get("color").getAsInt() : 0
+                    ));
+                }
             }
-        }
 
-        return new AccountMe(id, username, minecraftUuid, cards);
+            return new AccountMe(id, username, minecraftUuid, cards);
+        } catch (Exception e) {
+            System.out.println("Failed to parse account info response: " + e.getMessage());
+            System.out.println(body);
+
+            throw new IOException("Failed to parse account info response", e);
+        }
     }
 
     public TransactionResult createTransaction(CardAuth auth, String receiver, long amount, String comment)
@@ -111,9 +131,17 @@ public final class SPWorldsApiClient {
                 .build();
 
         String body = send(request);
-        JsonObject json = JsonParser.parseString(body).getAsJsonObject();
-        long balance = json.has("balance") ? json.get("balance").getAsLong() : 0L;
-        return new TransactionResult(balance);
+        try {
+            JsonObject json = JsonParser.parseString(body).getAsJsonObject();
+
+            long balance = json.has("balance") ? json.get("balance").getAsLong() : 0L;
+            return new TransactionResult(balance);
+        } catch (Exception exception) {
+            System.out.println("Failed to parse transaction response: " + exception.getMessage());
+            System.out.println(body);
+
+            throw new IOException("Failed to parse transaction response", exception);
+        }
     }
 
     private HttpRequest.Builder requestBuilder(String path, CardAuth auth) {
