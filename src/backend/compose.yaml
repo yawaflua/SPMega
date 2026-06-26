@@ -1,0 +1,7 @@
+﻿services:
+  spmega.backend:
+    image: spmega.backend
+    build:
+      context: .
+      dockerfile: SpMega.Backend/Dockerfile
+

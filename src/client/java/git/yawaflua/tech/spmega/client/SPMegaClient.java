@@ -167,5 +167,7 @@ public class SPMegaClient implements ClientModInitializer {
             }
 
         });
+
+        new ChatListener().register();
     }
 }

@@ -41,6 +41,7 @@ public class PaymentScreen extends Screen {
     private Text senderCardText = Text.literal("Карта отправителя: не выбрана");
     private ButtonWidget transferButton;
     private ButtonWidget backButton;
+    private boolean transferInProgress;
 
     public PaymentScreen(Screen parent) {
         this(parent, "");
@@ -192,6 +193,11 @@ public class PaymentScreen extends Screen {
     }
 
     private void submit() {
+        if (transferInProgress) {
+            notifications.show(Text.literal("Перевод уже выполняется"));
+            return;
+        }
+
         CardViewModel selectedCard = bankUiService.getSelectedCard();
         if (selectedCard == null) {
             notifications.show(Text.literal("Нет выбранной карты отправителя"));
@@ -205,7 +211,8 @@ public class PaymentScreen extends Screen {
                 notifications.show(Text.literal("Сумма должна быть больше 0"));
                 return;
             }
-        } catch (NumberFormatException exception) {
+        } catch (Exception exception) {
+            System.out.println(exception.getMessage());
             notifications.show(Text.literal("Некорректная сумма"));
             return;
         }
@@ -232,18 +239,46 @@ public class PaymentScreen extends Screen {
                 commentField.getText().trim()
         );
 
-        boolean accepted = bankUiService.submitPayment(draft);
-        String serviceMessage = bankUiService.getLastMessage();
-        if (!serviceMessage.isBlank()) {
+        setTransferInProgress(true);
+        notifications.show(Text.literal("Отправка перевода..."));
 
-            notifications.showMessage(serviceMessage);
-        } else {
-            notifications.show(accepted
-                    ? Text.literal("Перевод выполнен")
-                    : Text.literal("Перевод отклонен"));
+        bankUiService.submitPaymentAsync(draft)
+                .thenAccept(accepted -> {
+                    if (this.client == null) {
+                        return;
+                    }
+                    this.client.execute(() -> {
+                        setTransferInProgress(false);
+
+                        String serviceMessage = bankUiService.getLastMessage();
+                        if (!serviceMessage.isBlank()) {
+                            notifications.showMessage(serviceMessage);
+                        } else {
+                            notifications.show(accepted
+                                    ? Text.literal("Перевод выполнен")
+                                    : Text.literal("Перевод отклонен"));
+                        }
+
+                        updateSenderCardSelector();
+                        updateSenderCardText();
+                    });
+                })
+                .exceptionally(exception -> {
+                    if (this.client != null) {
+                        this.client.execute(() -> {
+                            setTransferInProgress(false);
+                            notifications.show(Text.literal("Ошибка перевода: " + exception.getMessage()));
+                        });
+                    }
+                    return null;
+                });
+    }
+
+    private void setTransferInProgress(boolean inProgress) {
+        transferInProgress = inProgress;
+        if (transferButton != null) {
+            transferButton.active = !inProgress;
         }
-        updateSenderCardSelector();
-        updateSenderCardText();
     }
 
     private boolean isValidRecipient(String recipient) {
@@ -277,7 +312,7 @@ public class PaymentScreen extends Screen {
     private void updateSenderCardSelector() {
         CardViewModel selectedCard = bankUiService.getSelectedCard();
         if (selectedCard == null) {
-            senderCardLabelButton.setMessage(Text.literal("\"00000\": \"0\" АР"));
+            senderCardLabelButton.setMessage(Text.literal("TEST 00000: 0 АР"));
             senderLeftButton.active = false;
             senderRightButton.active = false;
             return;
@@ -285,9 +320,8 @@ public class PaymentScreen extends Screen {
 
         senderLeftButton.active = true;
         senderRightButton.active = true;
-        String cardId = extractCardId(selectedCard.title());
         String balance = Long.toString(selectedCard.balance());
-        senderCardLabelButton.setMessage(Text.literal("\"" + cardId + "\": \"" + balance + "\" АР"));
+        senderCardLabelButton.setMessage(Text.literal(selectedCard.title() + ": " + balance + " АР"));
         senderCardLabelButton.active = false;
     }
 

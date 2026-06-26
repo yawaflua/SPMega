@@ -53,6 +53,15 @@ public final class SPWorldsApiClient {
         String body = send(request);
         try {
             JsonObject json = JsonParser.parseString(body).getAsJsonObject();
+            if (json.has("statusCode")) {
+                switch (json.get("statusCode").getAsInt()) {
+                    case 403:
+                        throw new IOException("Апи вернула ошибку: " + json.get("message").getAsString());
+                    default:
+                        System.out.println("Unhandled status code in card info response: " + json.get("statusCode").getAsInt());
+                        break;
+                }
+            }
             long balance = json.has("balance") ? json.get("balance").getAsLong() : 0L;
             String webhook = json.has("webhook") && !json.get("webhook").isJsonNull()
                     ? json.get("webhook").getAsString()

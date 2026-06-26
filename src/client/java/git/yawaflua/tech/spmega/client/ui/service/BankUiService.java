@@ -4,6 +4,7 @@ import git.yawaflua.tech.spmega.api.SPWorldsApiClient;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 public final class BankUiService {
     private static final BankUiService INSTANCE = new BankUiService();
@@ -110,7 +111,7 @@ public final class BankUiService {
             List<String> numbers = new ArrayList<>();
             for (SPWorldsApiClient.PlayerCard apiCard : apiCards) {
                 if (apiCard.number() != null && !apiCard.number().isBlank()) {
-                    numbers.add(apiCard.number());
+                    numbers.add(apiCard.name() + " : " + apiCard.number());
                 }
             }
             lastMessage = "";
@@ -222,6 +223,10 @@ public final class BankUiService {
             lastMessage = "Ошибка перевода: " + exception.getMessage();
             return false;
         }
+    }
+
+    public CompletableFuture<Boolean> submitPaymentAsync(PaymentDraft draft) {
+        return CompletableFuture.supplyAsync(() -> submitPayment(draft));
     }
 
     private boolean refreshCard(

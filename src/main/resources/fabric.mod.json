@@ -4,8 +4,11 @@
   "version": "${version}",
   "name": "SPMega",
   "description": "yawaflua`s SPRadar+SPMHelper mod, thats make a lot!",
-  "authors": [],
-  "contact": {},
+  "authors": [
+    "Dmitri 'yawaflua' Shimanski aka DOLBAYEB"
+  ],
+  "contact": {
+  },
   "license": "CC BY-NC-ND 4.0",
   "icon": "icon.png",
   "environment": "client",

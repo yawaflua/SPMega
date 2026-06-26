@@ -6,6 +6,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Util;
 
+import java.awt.*;
 import java.net.URI;
 
 public class QRcodeAcceptScreen extends Screen {
@@ -20,6 +21,8 @@ public class QRcodeAcceptScreen extends Screen {
 
     @Override
     protected void init() {
+
+
         this.addDrawableChild(ButtonWidget.builder(Text.translatable("button.spmega.qr.cancel"), button -> {
             if (this.client != null) {
                 this.client.setScreen(parent);
@@ -53,17 +56,10 @@ public class QRcodeAcceptScreen extends Screen {
 
         context.drawCenteredTextWithShadow(
                 this.textRenderer,
-                Text.translatable("screen.spmega.qr.accept_link"),
+                Text.literal("Найдена ссылка: " + url),
                 this.width / 2,
-                this.height / 2 - 30,
-                0xFFFFFF
-        );
-        context.drawCenteredTextWithShadow(
-                this.textRenderer,
-                Text.literal(url),
-                this.width / 2,
-                this.height / 2 - 10,
-                0xFFD27F
+                this.height / 2,
+                Color.WHITE.getRGB()
         );
     }
 }
