@@ -1,9 +1,12 @@
 package git.yawaflua.tech.spmega.client;
 
+import git.yawaflua.tech.spmega.ModConfig;
 import git.yawaflua.tech.spmega.SPMega;
 import git.yawaflua.tech.spmega.client.qr.QRCodeScanner;
+import git.yawaflua.tech.spmega.client.ui.GpsHudRenderer;
 import git.yawaflua.tech.spmega.client.ui.UiNotifications;
 import git.yawaflua.tech.spmega.client.ui.UiOpeners;
+import git.yawaflua.tech.spmega.client.ui.service.BackendAuthenticator;
 import git.yawaflua.tech.spmega.client.ui.service.BankUiService;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -18,6 +21,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.decoration.ItemFrameEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import org.lwjgl.glfw.GLFW;
@@ -29,6 +33,9 @@ public class SPMegaClient implements ClientModInitializer {
     private static final Pattern ISOLATED_FIVE_DIGITS = Pattern.compile("(?<!\\d)(\\d{5})(?!\\d)");
     private static KeyBinding openBankMenuKeyBinding;
     private static KeyBinding scanQrKeyBinding;
+    private static KeyBinding toggleGpsKeyBinding;
+    private static boolean wasPaymentShortcutPressed = false;
+
 
     private static String extractCardNumber(SignBlockEntity signBlockEntity) {
         String candidate = findFiveDigits(signBlockEntity.getFrontText().getMessages(false));
@@ -65,6 +72,7 @@ public class SPMegaClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        GpsHudRenderer.instance();
         openBankMenuKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.spmega.open_menu",
                 InputUtil.Type.KEYSYM,
@@ -79,6 +87,17 @@ public class SPMegaClient implements ClientModInitializer {
                 KeyBinding.Category.GAMEPLAY
         ));
 
+        toggleGpsKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.spmega.toggle_gps",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_J,
+                KeyBinding.Category.GAMEPLAY
+        ));
+
+        if (SPMega.getConfig() != null) {
+            GpsHudRenderer.instance().setEnabled(SPMega.getConfig().gpsEnabled());
+        }
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             UiNotifications.instance().tick();
             while (openBankMenuKeyBinding.wasPressed()) {
@@ -87,9 +106,40 @@ public class SPMegaClient implements ClientModInitializer {
             while (scanQrKeyBinding.wasPressed()) {
                 QRCodeScanner.ScanQrCode(client);
             }
+            while (toggleGpsKeyBinding.wasPressed()) {
+                GpsHudRenderer.instance().toggle();
+                if (SPMega.getConfig() != null) {
+                    ModConfig current = SPMega.getConfig();
+                    ModConfig updated = new ModConfig(
+                            current.apiDomain(),
+                            current.apiToken(),
+                            current.allowBackend(),
+                            current.signQuickPayEnabled(),
+                            GpsHudRenderer.instance().isEnabled(),
+                            current.gpsPosition()
+                    );
+                    SPMega.setConfig(updated);
+                }
+                String status = GpsHudRenderer.instance().isEnabled() ? "включен" : "выключен";
+                UiNotifications.instance().show(Text.literal("GPS Ада " + status));
+            }
+
+            if (client.player != null && client.options != null) {
+                boolean isCombinationPressed = client.options.sprintKey.isPressed() && client.options.sneakKey.isPressed() && client.options.leftKey.isPressed();
+                if (isCombinationPressed) {
+                    if (!wasPaymentShortcutPressed && client.currentScreen == null) {
+                        if (client.targetedEntity instanceof PlayerEntity targetedPlayer && targetedPlayer != client.player) {
+                            String recipient = targetedPlayer.getStringifiedName();
+                            UiOpeners.openPaymentMenu(client, recipient);
+                        }
+                    }
+                    wasPaymentShortcutPressed = true;
+                } else {
+                    wasPaymentShortcutPressed = false;
+                }
+            }
         });
 
-        // World HUD path (when no screen is open).
         HudRenderCallback.EVENT.register((drawContext, tickDeltaManager) -> {
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.currentScreen != null || client.textRenderer == null) {
@@ -101,16 +151,35 @@ public class SPMegaClient implements ClientModInitializer {
                     client.getWindow().getScaledWidth(),
                     client.getWindow().getScaledHeight()
             );
+            GpsHudRenderer.instance().render(
+                    drawContext,
+                    client.textRenderer,
+                    client.getWindow().getScaledWidth(),
+                    client.getWindow().getScaledHeight()
+            );
         });
 
-        // Screen path (for all GUI screens).
-        ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) ->
-                ScreenEvents.afterRender(screen).register((screenInstance, drawContext, mouseX, mouseY, tickDelta) -> {
-                    if (client.textRenderer == null) {
-                        return;
-                    }
-                    UiNotifications.instance().render(drawContext, client.textRenderer, scaledWidth, scaledHeight);
-                })
+        ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
+                    ScreenEvents.afterRender(screen).register((screenInstance, drawContext, mouseX, mouseY, tickDelta) -> {
+                        if (client.textRenderer == null) {
+                            return;
+                        }
+                        UiNotifications.instance().render(drawContext, client.textRenderer, scaledWidth, scaledHeight);
+                    });
+//                    CompletableFuture.supplyAsync(() -> BackendAuthenticator.authenticate(client))
+//                            .thenAccept(authResult -> {
+//                                if (authResult) {
+//                                    System.out.println("SPMega: Authenticated on backend successfully.");
+//                                } else {
+//                                    System.err.println("SPMega: Authentication on backend failed");
+//                                }
+//                            })
+//                            .exceptionally(ex -> {
+//                                System.err.println("SPMega: Authentication error: " + ex.getMessage());
+//                                return null;
+//                            });
+
+                }
         );
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
@@ -169,5 +238,8 @@ public class SPMegaClient implements ClientModInitializer {
         });
 
         new ChatListener().register();
+        BackendAuthenticator.authenticate(MinecraftClient.getInstance());
+        System.out.println("Author of SPMega make it with 4 cans of monster");
+        System.out.println("Initialized beshalom! Tieie tovim!");
     }
 }

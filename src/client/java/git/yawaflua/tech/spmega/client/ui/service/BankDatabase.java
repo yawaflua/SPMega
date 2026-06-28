@@ -166,6 +166,31 @@ public final class BankDatabase {
         }
     }
 
+    public synchronized List<LocalTransaction> loadTransferHistory(String cardId) {
+        String sql = "SELECT receiver, amount, comment, status, created_at FROM transfer_history WHERE sender_card_id = ? ORDER BY id DESC";
+        List<LocalTransaction> result = new ArrayList<>();
+        try (Connection connection = open(); PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, cardId);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new LocalTransaction(
+                            rs.getString("receiver"),
+                            rs.getLong("amount"),
+                            rs.getString("comment"),
+                            rs.getString("status"),
+                            rs.getString("created_at")
+                    ));
+                }
+            }
+            return result;
+        } catch (SQLException exception) {
+            throw new RuntimeException("Failed to load transfer history", exception);
+        }
+    }
+
+    public record LocalTransaction(String receiver, long amount, String comment, String status, String createdAt) {
+    }
+
     private Connection open() throws SQLException {
         return DriverManager.getConnection(jdbcUrl);
     }

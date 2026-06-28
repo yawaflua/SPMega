@@ -1,0 +1,688 @@
+@page "/{id?}"
+@model SpMega.Backend.Pages.v1.BillPage
+
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Чек транзакции — SPMega</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-gradient: radial-gradient(circle at 50% 50%, #1a1e29 0%, #0d0f14 100%);
+            --paper-color: #faf9f6;
+            --text-dark: #1f2937;
+            --text-muted: #6b7280;
+            --primary: #10b981;
+            --primary-hover: #059669;
+            --error: #ef4444;
+            --border-color: #e5e7eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        /* Ambient glowing background */
+        .ambient-glow {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, rgba(0,0,0,0) 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .receipt-wrapper {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 400px;
+            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Receipt paper style */
+        .receipt-paper {
+            background-color: var(--paper-color);
+            color: var(--text-dark);
+            width: 100%;
+            padding: 40px 28px 30px;
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+        }
+
+        /* Torn paper effect using CSS linear gradients */
+        .receipt-paper::before, .receipt-paper::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 12px;
+            background-size: 16px 16px;
+            background-repeat: repeat-x;
+            z-index: 2;
+        }
+
+        .receipt-paper::before {
+            top: -12px;
+            background-image: linear-gradient(135deg, transparent 25%, var(--paper-color) 25%, var(--paper-color) 75%, transparent 75%),
+                              linear-gradient(225deg, transparent 25%, var(--paper-color) 25%, var(--paper-color) 75%, transparent 75%);
+        }
+
+        .receipt-paper::after {
+            bottom: -12px;
+            background-image: linear-gradient(45deg, transparent 25%, var(--paper-color) 25%, var(--paper-color) 75%, transparent 75%),
+                              linear-gradient(-45deg, transparent 25%, var(--paper-color) 25%, var(--paper-color) 75%, transparent 75%);
+        }
+
+        /* Stamp style */
+        .stamp {
+            position: absolute;
+            top: 22%;
+            right: 10%;
+            border: 3px double var(--primary);
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 4px 10px;
+            transform: rotate(-15deg);
+            opacity: 0.85;
+            border-radius: 4px;
+            user-select: none;
+            letter-spacing: 2px;
+            pointer-events: none;
+            background: rgba(250, 249, 246, 0.8);
+            box-shadow: 0 0 0 2px var(--primary);
+            animation: stampIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.5s both;
+        }
+
+        .stamp.error {
+            border-color: var(--error);
+            color: var(--error);
+            box-shadow: 0 0 0 2px var(--error);
+        }
+
+        /* Header elements */
+        .receipt-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .receipt-logo {
+            font-family: 'Inter', sans-serif;
+            font-weight: 800;
+            font-size: 20px;
+            letter-spacing: 1px;
+            color: #111827;
+            margin-bottom: 4px;
+        }
+
+        .receipt-subtitle {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .divider {
+            border-top: 2px dashed #d1d5db;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .divider::before, .divider::after {
+            content: '';
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #0d0f14; /* cutouts on sides */
+            border-radius: 50%;
+            top: -6px;
+            z-index: 3;
+        }
+        .divider::before { left: -34px; }
+        .divider::after { right: -34px; }
+
+        /* Meta block */
+        .meta-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            gap: 12px;
+        }
+
+        .meta-label {
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .meta-value {
+            text-align: right;
+            word-break: break-all;
+            color: #111827;
+        }
+
+        .meta-value.bold {
+            font-weight: 700;
+        }
+
+        /* Amount styling */
+        .amount-section {
+            text-align: center;
+            padding: 15px 0;
+        }
+
+        .amount-title {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .amount-val {
+            font-size: 32px;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        /* Comments box */
+        .comment-box {
+            background: rgba(0, 0, 0, 0.03);
+            border-left: 3px solid #9ca3af;
+            padding: 10px 12px;
+            margin-top: 15px;
+            font-style: italic;
+            color: #374151;
+            border-radius: 2px;
+        }
+
+        /* Footer tools */
+        .receipt-footer {
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .qr-code-wrapper {
+            margin: 15px auto;
+            width: 110px;
+            height: 110px;
+            background: #ffffff;
+            padding: 5px;
+            border: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 4px;
+        }
+
+        .qr-code-wrapper img {
+            width: 100%;
+            height: 100%;
+        }
+
+        .barcode {
+            width: 100%;
+            height: 40px;
+            margin: 15px auto 4px;
+            background: repeating-linear-gradient(
+                90deg,
+                #111827,
+                #111827 2px,
+                transparent 2px,
+                transparent 5px,
+                #111827 5px,
+                #111827 6px,
+                transparent 6px,
+                transparent 9px,
+                #111827 9px,
+                #111827 11px,
+                transparent 11px,
+                transparent 13px
+            );
+            opacity: 0.85;
+        }
+
+        .barcode-text {
+            font-size: 9px;
+            color: var(--text-muted);
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+
+        /* Action buttons */
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            width: 100%;
+            margin-top: 30px;
+            z-index: 1;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-secondary {
+            background-color: rgba(255, 255, 255, 0.08);
+            color: #e5e7eb;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* Loading / Error skeletons */
+        .loader-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 50px 0;
+            width: 100%;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(16, 185, 129, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 16px;
+        }
+
+        .error-state {
+            text-align: center;
+            padding: 30px 10px;
+        }
+
+        .error-icon {
+            font-size: 40px;
+            color: var(--error);
+            margin-bottom: 16px;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            background: rgba(17, 24, 39, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Animations */
+        @@keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @@keyframes stampIn {
+            from { opacity: 0; transform: rotate(-25deg) scale(1.6); filter: blur(2px); }
+            to { opacity: 0.85; transform: rotate(-15deg) scale(1); filter: blur(0); }
+        }
+
+        @@keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Printable stylesheet */
+        @@media print {
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+                padding: 0;
+                margin: 0;
+                display: block;
+            }
+            .ambient-glow, .action-buttons, .toast {
+                display: none !important;
+            }
+            .receipt-wrapper {
+                max-width: 100%;
+                box-shadow: none !important;
+                transform: none !important;
+                animation: none !important;
+            }
+            .receipt-paper {
+                box-shadow: none !important;
+                padding: 10px;
+                border: none;
+                margin: 0 auto;
+                background: #ffffff !important;
+            }
+            .receipt-paper::before, .receipt-paper::after {
+                display: none !important;
+            }
+            .divider::before, .divider::after {
+                display: none !important;
+            }
+            .stamp {
+                background: none !important;
+                border-style: solid !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient-glow"></div>
+
+    <div class="receipt-wrapper">
+        
+        <div class="receipt-paper" id="receiptContent">
+            <!-- Dynamic Content Injected Here -->
+            <div class="loader-container" id="loadingState">
+                <div class="spinner"></div>
+                <div style="color: var(--text-muted)">Получение данных чека...</div>
+            </div>
+        </div>
+
+        <div class="action-buttons" id="actionButtons" style="display: none;">
+            <button class="btn btn-secondary" onclick="copyReceiptLink()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                </svg>
+                Ссылка
+            </button>
+            <button class="btn btn-primary" onclick="window.print()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-3a2 2 0 00-2-2H9a2 2 0 00-2 2v3a2 2 0 002 2zm5-17v2m-6 4h12" />
+                </svg>
+                Печать чека
+            </button>
+        </div>
+    </div>
+
+    <!-- Copy Toast -->
+    <div class="toast" id="copyToast">
+        <svg width="18" height="18" fill="none" stroke="var(--primary)" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>Ссылка скопирована в буфер обмена</span>
+    </div>
+
+    <script>
+        function getTransactionId() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const idParam = urlParams.get('billId') || urlParams.get('id') || urlParams.get('transactionId');
+            if (idParam) return idParam;
+
+            const pathSegments = window.location.pathname.split('/').filter(p => p);
+            if (pathSegments.length > 0) {
+                return pathSegments[pathSegments.length - 1];
+            }
+            return null;
+        }
+
+        function formatDate(isoString) {
+            try {
+                const date = new Date(isoString);
+                if (isNaN(date.getTime())) return isoString;
+                
+                const pad = (n) => String(n).padStart(2, '0');
+                const d = pad(date.getDate());
+                const m = pad(date.getMonth() + 1);
+                const y = date.getFullYear();
+                const h = pad(date.getHours());
+                const min = pad(date.getMinutes());
+                const s = pad(date.getSeconds());
+                
+                return `${d}.${m}.${y} ${h}:${min}:${s}`;
+            } catch (e) {
+                return isoString;
+            }
+        }
+
+        async function loadBill() {
+            const billId = getTransactionId();
+            const receiptContentEl = document.getElementById('receiptContent');
+            const actionButtonsEl = document.getElementById('actionButtons');
+
+            if (!billId) {
+                renderError('Идентификатор транзакции не указан. Пожалуйста, укажите ShortId в URL-адресе.');
+                return;
+            }
+
+            try {
+                // Fetch transaction details from API
+                const response = await fetch(`/api/v1/transactions/${billId}`);
+                if (!response.ok) {
+                    throw new Error(`Ошибка сервера: ${response.status}`);
+                }
+
+                const transaction = await response.json();
+                
+                // Success stamp and details rendering
+                const formattedDate = formatDate(transaction.transactionDate || new Date().toISOString());
+                const senderCard = (transaction.senderCardNumber);
+                const receiverCard = (transaction.receiverCardNumber);
+                
+                let commentHtml = '';
+                if (transaction.comment && transaction.comment.trim() !== '') {
+                    commentHtml = `
+                        <div class="comment-box">
+                            <strong>Назначение:</strong><br/>
+                            ${escapeHtml(transaction.comment)}
+                        </div>
+                    `;
+                }
+
+                // Make dynamic QR code
+                const qrUrl = encodeURIComponent(window.location.href);
+                const qrCodeSrc = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${qrUrl}&color=111827&bgcolor=faf9f6`;
+
+                receiptContentEl.innerHTML = `
+                    <!-- Inked stamp of completion -->
+                    <div class="stamp">Оплачено</div>
+
+                    <div class="receipt-header">
+                        <div class="receipt-logo">SPMEGA PAY</div>
+                        <div class="receipt-subtitle">Электронная квитанция</div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="amount-section">
+                        <div class="amount-title">Сумма платежа</div>
+                        <div class="amount-val">${Number(transaction.amount)} АР</div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="meta-row">
+                        <span class="meta-label">ID транзакции:</span>
+                        <span class="meta-value" style="font-size: 11px;">${transaction.id}</span>
+                    </div>
+
+                    <div class="meta-row">
+                        <span class="meta-label">Дата & Время:</span>
+                        <span class="meta-value">${formattedDate}</span>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="meta-row">
+                        <span class="meta-label">Отправитель:</span>
+                        <span class="meta-value bold">${escapeHtml(transaction.sender?.username || 'Клиент SPMega')}</span>
+                    </div>
+
+                    <div class="meta-row">
+                        <span class="meta-label">Карта списания:</span>
+                        <span class="meta-value">${senderCard}</span>
+                    </div>
+
+                    <div class="divider" style="margin: 10px 0; border-top: 1px dotted #9ca3af;"></div>
+
+                    <div class="meta-row">
+                        <span class="meta-label">Получатель:</span>
+                        <span class="meta-value bold">${escapeHtml(transaction.receiverName || 'Не указан')}</span>
+                    </div>
+
+                    <div class="meta-row">
+                        <span class="meta-label">Карта зачисления:</span>
+                        <span class="meta-value">${receiverCard}</span>
+                    </div>
+
+                    ${commentHtml}
+
+                    <div class="divider"></div>
+
+                    <div class="receipt-footer">
+                        <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase;">
+                            Сканируйте для проверки
+                        </div>
+                        <div class="qr-code-wrapper">
+                            <img src="${qrCodeSrc}" alt="QR-код чека" onerror="this.parentElement.style.display='none'" />
+                        </div>
+                        <div class="barcode"></div>
+                        <div class="barcode-text">spmega*transaction*chk</div>
+                        <div style="font-size: 10px; color: var(--text-muted); margin-top: 15px;">
+                            Спасибо за то, что вы с нами!
+                        </div>
+                    </div>
+                `;
+
+                // Display operations buttons
+                actionButtonsEl.style.display = 'flex';
+
+            } catch (err) {
+                console.error(err);
+                renderError('Не удалось загрузить чек. Убедитесь, что GUID транзакции верен и сервер доступен.');
+            }
+        }
+
+        function renderError(message) {
+            const receiptContentEl = document.getElementById('receiptContent');
+            receiptContentEl.innerHTML = `
+                <div class="stamp error">Ошибка</div>
+                <div class="receipt-header">
+                    <div class="receipt-logo">SPMEGA PAY</div>
+                    <div class="receipt-subtitle">Проблема с транзакцией</div>
+                </div>
+                <div class="divider"></div>
+                <div class="error-state">
+                    <div class="error-icon">⚠</div>
+                    <div style="font-weight: 600; color: #111827; margin-bottom: 8px;">Чек не найден</div>
+                    <div style="color: var(--text-muted); font-size: 12px; line-height: 1.5;">${escapeHtml(message)}</div>
+                </div>
+                <div class="divider"></div>
+                <div class="receipt-footer">
+                    <div class="barcode"></div>
+                    <div class="barcode-text">error*code*404</div>
+                </div>
+            `;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+
+        function copyReceiptLink() {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                const toast = document.getElementById('copyToast');
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            }).catch(err => {
+                console.error('Could not copy text: ', err);
+            });
+        }
+
+        // Initialize loading on DOM ready
+        window.addEventListener('DOMContentLoaded', loadBill);
+    </script>
+</body>
+</html>

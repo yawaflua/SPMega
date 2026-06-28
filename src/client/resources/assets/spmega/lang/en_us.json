@@ -14,6 +14,22 @@
   "message.spmega.qr.error": "Failed to scan QR from screen",
   "message.spmega.qr.hover_tip": "Click to open link",
   "message.spmega.qr.found_link": "Found link: %s",
-  "message.spmega.qr.failed_open": "Failed to open link"
+  "message.spmega.qr.failed_open": "Failed to open link",
+  "key.spmega.toggle_gps": "Toggle Nether GPS",
+  "title.spmega.config": "SPMega Settings",
+  "category.spmega.general": "General Settings",
+  "option.spmega.api_domain": "API Domain",
+  "option.spmega.api_token": "API Token",
+  "option.spmega.allow_backend": "Allow saving data, transactions and other sensitive information to the backend",
+  "option.spmega.sign_quick_pay": "Quick Pay by Signs",
+  "option.spmega.gps_position": "Nether GPS position",
+  "option.spmega.gps_position.top_left": "Top-Left",
+  "option.spmega.gps_position.top_right": "Top-Right",
+  "option.spmega.gps_position.bottom_left": "Bottom-Left",
+  "option.spmega.gps_position.bottom_right": "Bottom-Right",
+  "option.spmega.gps_position.bottom_center": "Bottom-center",
+  "option.spmega.gps_position.top_center": "Top-center"
 }
+
+
 

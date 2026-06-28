@@ -1,0 +1,573 @@
+@page "/privacy"
+@model SpMega.Backend.AgreementPage
+
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Пользовательское соглашение — SPMega</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #0b0f17;
+            --surface-color: #121824;
+            --surface-border: rgba(255, 255, 255, 0.08);
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.15);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.15);
+            --warning: #f59e0b;
+            --warning-glow: rgba(245, 158, 11, 0.1);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --text-link: #60a5fa;
+            --font-sans: 'Inter', sans-serif;
+            --font-display: 'Outfit', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            line-height: 1.6;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* Subtle glowing background blobs */
+        .glow-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        .blob-1 {
+            width: 400px;
+            height: 400px;
+            background: rgba(59, 130, 246, 0.12);
+            top: -100px;
+            left: -100px;
+        }
+
+        .blob-2 {
+            width: 500px;
+            height: 500px;
+            background: rgba(16, 185, 129, 0.08);
+            bottom: -150px;
+            right: -100px;
+        }
+
+        .wrapper {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+            flex-grow: 1;
+        }
+
+        /* Navigation Header */
+        header {
+            margin-bottom: 40px;
+            border-bottom: 1px solid var(--surface-border);
+            padding-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--primary), var(--success));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-family: var(--font-display);
+            color: #ffffff;
+            font-size: 18px;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .logo-text {
+            font-family: var(--font-display);
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            background: linear-gradient(to right, #ffffff, #9ca3af);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .meta-info {
+            text-align: right;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Layout Grid */
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 40px;
+            align-items: start;
+        }
+
+        /* Sticky Sidebar Table of Contents */
+        .sidebar {
+            position: sticky;
+            top: 40px;
+            background: var(--surface-color);
+            border: 1px solid var(--surface-border);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        }
+
+        .sidebar-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ffffff;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .toc-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .toc-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: inline-block;
+            border-left: 2px solid transparent;
+            padding-left: 10px;
+        }
+
+        .toc-link:hover, .toc-link.active {
+            color: var(--primary);
+            border-left-color: var(--primary);
+            padding-left: 14px;
+        }
+
+        /* Legal Content */
+        .document-container {
+            background: var(--surface-color);
+            border: 1px solid var(--surface-border);
+            border-radius: 16px;
+            padding: 40px 48px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .doc-title {
+            font-family: var(--font-display);
+            font-size: 32px;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #ffffff, #e5e7eb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .doc-subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 32px;
+            display: flex;
+            gap: 16px;
+        }
+
+        .alert-box {
+            background: var(--warning-glow);
+            border-left: 4px solid var(--warning);
+            border-radius: 4px;
+            padding: 16px 20px;
+            margin-bottom: 36px;
+            font-size: 14px;
+            color: #fce7f3;
+        }
+
+        .alert-box strong {
+            color: var(--warning);
+            font-family: var(--font-display);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .doc-section {
+            margin-bottom: 40px;
+            scroll-margin-top: 40px;
+        }
+
+        .doc-section h2 {
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .doc-section h2::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        .doc-section p {
+            color: rgba(243, 244, 246, 0.85);
+            margin-bottom: 16px;
+            font-size: 15px;
+            text-align: justify;
+        }
+
+        .doc-section ul {
+            list-style: none;
+            margin-left: 8px;
+            margin-bottom: 16px;
+        }
+
+        .doc-section li {
+            position: relative;
+            padding-left: 20px;
+            margin-bottom: 10px;
+            font-size: 14.5px;
+            color: rgba(243, 244, 246, 0.8);
+        }
+
+        .doc-section li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--success);
+            font-weight: bold;
+        }
+
+        .badge {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--text-link);
+        }
+
+        /* Footer elements */
+        footer {
+            margin-top: auto;
+            border-top: 1px solid var(--surface-border);
+            padding: 24px 0;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            z-index: 1;
+            position: relative;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 12px;
+        }
+
+        .footer-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-link:hover {
+            color: #ffffff;
+        }
+
+        /* Scroll to top button */
+        .scroll-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--primary);
+            color: #ffffff;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 99;
+        }
+
+        .scroll-top.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .scroll-top:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+        }
+
+        /* Animations */
+        @@keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Responsive Design */
+        @@media (max-width: 960px) {
+            .layout-grid {
+                grid-template-columns: 1fr;
+            }
+            .sidebar {
+                display: none; /* Hide sidebar table of contents on smaller screens */
+            }
+            .document-container {
+                padding: 30px 24px;
+            }
+        }
+
+        @@media (max-width: 600px) {
+            header {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+                align-items: center;
+            }
+            .meta-info {
+                text-align: center;
+            }
+            .doc-title {
+                font-size: 24px;
+            }
+            .doc-subtitle {
+                flex-direction: column;
+                gap: 8px;
+                margin-bottom: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="glow-blob blob-1"></div>
+    <div class="glow-blob blob-2"></div>
+
+    <div class="wrapper">
+        <header>
+            <a href="#" class="logo-group">
+                <div class="logo-icon">S</div>
+                <div class="logo-text">SPMega</div>
+            </a>
+            <div class="meta-info">
+                <div>Версия: <span class="badge">1.0.0-2026</span></div>
+                <div style="margin-top: 4px;">Обновлено: 28 июня 2026</div>
+            </div>
+        </header>
+
+        <main class="layout-grid">
+            <!-- Sidebar Navigation -->
+            <aside class="sidebar">
+                <h3 class="sidebar-title">Содержание</h3>
+                <ul class="toc-list">
+                    <li><a href="#intro" class="toc-link active" id="link-intro">1. Общие положения</a></li>
+                    <li><a href="#minecraft-mod" class="toc-link" id="link-minecraft-mod">2. Использование мода</a></li>
+                    <li><a href="#disclaimer" class="toc-link" id="link-disclaimer">3. Отказ от претензий</a></li>
+                    <li><a href="#data-collection" class="toc-link" id="link-data-collection">4. Сбор данных</a></li>
+                    <li><a href="#privacy" class="toc-link" id="link-privacy">5. Конфиденциальность</a></li>
+                    <li><a href="#changes" class="toc-link" id="link-changes">6. Изменение соглашения</a></li>
+                </ul>
+            </aside>
+
+            <!-- Document Content -->
+            <div class="document-container">
+                <h1 class="doc-title">Пользовательское соглашение</h1>
+                <div class="doc-subtitle">
+                    <span>Свод правил для пользователей модификации Minecraft и сервиса SPMega</span>
+                </div>
+
+                <div class="alert-box">
+                    <strong>Важная информация</strong>
+                    Установка, запуск модификации SPMega для Minecraft или посещение данного сайта означает ваше полное согласие со всеми пунктами данного соглашения. Если вы не согласны с какими-либо условиями, вы обязаны прекратить использование всех связанных сервисов и удалить модификацию.
+                </div>
+
+                <!-- Section 1 -->
+                <section id="intro" class="doc-section">
+                    <h2>Общие положения</h2>
+                    <p>Настоящее Соглашение является публичной офертой и регулирует порядок использования официального программного обеспечения (модификации для Minecraft), а также веб-сервисов и API, предоставляемых под эгидой проекта SPMega.</p>
+                    <p>Соглашение заключается между конечным пользователем (вами) и разработчиками проекта (автором модификации и владельцами сайта). Нажимая кнопку запуска в лаунчере, заходя в игру с активным модом или посещая данный ресурс, вы подтверждаете свою дееспособность и согласие с правилами.</p>
+                </section>
+
+                <!-- Section 2 -->
+                <section id="minecraft-mod" class="doc-section">
+                    <h2>Использование мода для Minecraft</h2>
+                    <p>Модификация SPMega разработана для интеграции игрового процесса Minecraft с нашей платежной и статистической системой. Пользователю предоставляется бесплатное неисключительное право на использование модификации в личных некоммерческих целях.</p>
+                    <p>При использовании модификации запрещено:</p>
+                    <ul>
+                        <li>Декомпилировать, модифицировать код или создавать клоны ПО без прямого письменного согласия разработчиков.</li>
+                        <li>Использовать баги мода или веб-интерфейсов для накрутки баланса, валюты или совершения несанкционированных транзакций.</li>
+                        <li>Использовать модификацию в связке с запрещенными сторонними программами (чит-клиенты, боты и т.д.).</li>
+                    </ul>
+                </section>
+
+                <!-- Section 3 -->
+                <section id="disclaimer" class="doc-section">
+                    <h2>Отказ от претензий (Дисклеймер)</h2>
+                    <p><strong>ПРОГРАММНОЕ ОБЕСПЕЧЕНИЕ ПРЕДОСТАВЛЯЕТСЯ «КАК ЕСТЬ» (AS IS).</strong> Автор модификации и владельцы сайта снимают с себя всю ответственность за любой ущерб, возникший в результате использования мода или веб-ресурсов.</p>
+                    <p>Пользователь осознает и соглашается, что:</p>
+                    <ul>
+                        <li>Автор не несет ответственности за сбои в игровом клиенте Minecraft, потерю игрового прогресса, повреждение файлов сохранений или несовместимость с другими модификациями.</li>
+                        <li>Владельцы сайта не гарантируют 100% бесперебойную доступность серверов API и ведения транзакций.</li>
+                        <li>Пользователь добровольно отказывается от любых финансовых, юридических, моральных или иных материальных претензий к авторам и администрации в случае технических сбоев.</li>
+                    </ul>
+                </section>
+
+                <!-- Section 4 -->
+                <section id="data-collection" class="doc-section">
+                    <h2>Сбор данных и статистики</h2>
+                    <p>Для корректного функционирования игровых транзакций, выписок, защиты от мошенничества и ведения честной игровой статистики, сайт и модификация SPMega осуществляют автоматический сбор технических параметров.</p>
+                    <p>Мы собираем и обрабатываем:</p>
+                    <ul>
+                        <li>Ваш уникальный идентификатор Minecraft (<span class="badge">UUID</span>) и текущий никнейм.</li>
+                        <li>Сведения о версии игры, версии Java и используемой версии модификации.</li>
+                        <li>Ваш текущий IP-адрес для предотвращения мультиаккаунтинга и выявления попыток взлома API.</li>
+                        <li>Техническую информацию о транзакциях (суммы, комментарии, номера виртуальных счетов/карт и идентификаторы).</li>
+                    </ul>
+                </section>
+
+                <!-- Section 5 -->
+                <section id="privacy" class="doc-section">
+                    <h2>Конфиденциальность и безопасность данных</h2>
+                    <p>Мы высоко ценим доверие наших пользователей и гарантируем сохранность собираемой информации. Все личные данные передаются и обрабатываются по защищенным зашифрованным каналам связи (HTTPS/SSL).</p>
+                    <p>Администрация сайта строго обязуется:</p>
+                    <ul>
+                        <li><strong>Не передавать, не продавать и не распространять</strong> ваши личные данные, IP-адреса и статистику третьим лицам.</li>
+                        <li>Использовать собранную анонимизированную статистику исключительно во внутренних аналитических целях для улучшения производительности мода.</li>
+                        <li>Раскрывать информацию только в случаях, прямо предусмотренных действующим законодательством при наличии официальных судебных или правоохранительных запросов.</li>
+                    </ul>
+                </section>
+
+                <!-- Section 6 -->
+                <section id="changes" class="doc-section">
+                    <h2>Изменение условий соглашения</h2>
+                    <p>Администрация оставляет за собой право в одностороннем порядке вносить изменения в настоящее Пользовательское соглашение без предварительного индивидуального уведомления пользователей.</p>
+                    <p>Новая редакция Соглашения вступает в силу с момента ее публикации на данной веб-странице. Мы рекомендуем периодически проверять условия соглашения, чтобы оставаться в курсе актуальных правил использования.</p>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <footer>
+        <div class="footer-links">
+            <a href="/v1/BillPage/00000000-0000-0000-0000-000000000000" class="footer-link">Проверить чек</a>
+            <span>•</span>
+            <a href="#" class="footer-link">Поддержка</a>
+        </div>
+        <div>&copy; 2026 SPMega. Все права защищены. Minecraft является торговой маркой Mojang Synergies AB.</div>
+    </footer>
+
+    <!-- Scroll to Top Button -->
+    <button class="scroll-top" id="scrollTopBtn" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+        </svg>
+    </button>
+
+    <script>
+        // Smooth scroll spy to highlight active sidebar links
+        window.addEventListener('DOMContentLoaded', () => {
+            const sections = document.querySelectorAll('.doc-section');
+            const navLinks = document.querySelectorAll('.toc-link');
+            const scrollTopBtn = document.getElementById('scrollTopBtn');
+
+            function highlightNav() {
+                let current = '';
+                
+                // Show/hide scroll top button
+                if (window.scrollY > 300) {
+                    scrollTopBtn.classList.add('visible');
+                } else {
+                    scrollTopBtn.classList.remove('visible');
+                }
+
+                // Scroll spy logic
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    const sectionHeight = section.clientHeight;
+                    if (window.scrollY >= sectionTop - 120) {
+                        current = section.getAttribute('id');
+                    }
+                });
+
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href') === `#${current}`) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+
+            window.addEventListener('scroll', highlightNav);
+            highlightNav(); // Trigger once on load
+        });
+    </script>
+</body>
+</html>

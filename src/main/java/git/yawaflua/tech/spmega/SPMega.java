@@ -9,6 +9,11 @@ public class SPMega implements ModInitializer {
         return config;
     }
 
+    public static void setConfig(ModConfig newConfig) {
+        config = newConfig;
+        ConfigManager.save(newConfig);
+    }
+
     @Override
     public void onInitialize() {
         config = ConfigManager.loadOrCreate();

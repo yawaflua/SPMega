@@ -42,19 +42,39 @@ public final class ConfigManager {
             shouldSave = true;
         }
 
+        boolean allowAccess = readBoolean(properties, "allow.backend", defaults.allowBackend());
+        String rawAllowAccess = properties.getProperty("sign.quickPay.enabled");
+        if (rawAllowAccess == null || !Boolean.toString(allowAccess).equalsIgnoreCase(rawAllowAccess.trim())) {
+            shouldSave = true;
+        }
+
         boolean signQuickPayEnabled = readBoolean(properties, "sign.quickPay.enabled", defaults.signQuickPayEnabled());
         String rawQuickPay = properties.getProperty("sign.quickPay.enabled");
         if (rawQuickPay == null || !Boolean.toString(signQuickPayEnabled).equalsIgnoreCase(rawQuickPay.trim())) {
             shouldSave = true;
         }
 
-        ModConfig config = new ModConfig(apiDomain, apiToken, signQuickPayEnabled);
+        boolean gpsEnabled = readBoolean(properties, "gps.enabled", defaults.gpsEnabled());
+        String rawGps = properties.getProperty("gps.enabled");
+        if (rawGps == null || !Boolean.toString(gpsEnabled).equalsIgnoreCase(rawGps.trim())) {
+            shouldSave = true;
+        }
+
+        GpsHudPosition gpsPosition = readEnum(properties, "gps.position", GpsHudPosition.class, defaults.gpsPosition());
+        String rawPosition = properties.getProperty("gps.position");
+        if (rawPosition == null || !gpsPosition.name().equalsIgnoreCase(rawPosition.trim())) {
+            shouldSave = true;
+        }
+
+        ModConfig config = new ModConfig(apiDomain, apiToken, allowAccess, signQuickPayEnabled, gpsEnabled, gpsPosition);
+
 
         if (shouldSave) {
             save(configPath, config);
         }
 
         return config;
+
     }
 
     private static String readString(Properties properties, String key, String fallback) {
@@ -97,11 +117,18 @@ public final class ConfigManager {
         return fallback;
     }
 
+    public static void save(ModConfig config) {
+        Path configPath = FabricLoader.getInstance().getConfigDir().resolve(FILE_NAME);
+        save(configPath, config);
+    }
+
     private static void save(Path configPath, ModConfig config) {
         Properties properties = new Properties();
         properties.setProperty("api.domain", config.apiDomain());
         properties.setProperty("api.token", config.apiToken());
         properties.setProperty("sign.quickPay.enabled", Boolean.toString(config.signQuickPayEnabled()));
+        properties.setProperty("gps.enabled", Boolean.toString(config.gpsEnabled()));
+        properties.setProperty("gps.position", config.gpsPosition().name());
 
         try {
             Files.createDirectories(configPath.getParent());
@@ -110,6 +137,18 @@ public final class ConfigManager {
             }
         } catch (IOException exception) {
             throw new RuntimeException("Failed to save config: " + configPath, exception);
+        }
+    }
+
+    private static <E extends Enum<E>> E readEnum(Properties properties, String key, Class<E> enumClass, E fallback) {
+        String value = properties.getProperty(key);
+        if (value == null || value.trim().isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Enum.valueOf(enumClass, value.trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            return fallback;
         }
     }
 }

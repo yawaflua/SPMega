@@ -9,12 +9,14 @@ import net.minecraft.text.Text;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public class CardScreen extends Screen {
     private final Screen parent;
     private final BankUiService bankUiService = BankUiService.instance();
     private final UiNotifications notifications = UiNotifications.instance();
     private final List<ButtonWidget> cardButtons = new ArrayList<>();
+    private ButtonWidget historyButton;
 
     public CardScreen(Screen parent) {
         super(Text.literal("Управление картами"));
@@ -44,16 +46,22 @@ public class CardScreen extends Screen {
         }
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Удалить"), button -> {
-            bankUiService.removeSelectedCard();
+            CompletableFuture.supplyAsync(() -> {
+                bankUiService.removeSelectedCard();
+                return true;
+            });
             notifications.showMessage(bankUiService.getLastMessage());
             this.clearAndInit();
         }).dimensions(rightX, startY, columnWidth, 20).build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Изменить"), button -> {
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Обновить"), button -> {
             String playerUuid = this.client != null && this.client.player != null
                     ? this.client.player.getUuidAsString()
                     : "";
-            bankUiService.refreshSelectedCard(playerUuid);
+            CompletableFuture.supplyAsync(() -> {
+                bankUiService.refreshSelectedCard(playerUuid);
+                return true;
+            });
             String message = bankUiService.getLastMessage().isBlank() ? "Карта обновлена" : bankUiService.getLastMessage();
             notifications.showMessage(message);
             this.clearAndInit();
@@ -68,6 +76,18 @@ public class CardScreen extends Screen {
                 this.clearAndInit();
             }));
         }).dimensions(rightX, startY + 48, columnWidth, 20).build());
+
+        historyButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("История"), button -> {
+            if (this.client == null) {
+                return;
+            }
+            CardViewModel selected = bankUiService.getSelectedCard();
+            if (selected == null) {
+                notifications.show(Text.literal("Сначала выбери или добавь карту"));
+                return;
+            }
+            this.client.setScreen(new TransactionHistoryScreen(this, selected.id(), selected.title()));
+        }).dimensions(rightX, startY + 72, columnWidth, 20).build());
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Назад"), button -> this.close())
                 .dimensions(rightX, startY + 120, columnWidth, 20)
@@ -118,6 +138,10 @@ public class CardScreen extends Screen {
             String suffix = selected ? " <<" : "";
             button.setMessage(Text.literal(prefix + cards.get(i).title() + suffix));
             button.active = !selected;
+        }
+
+        if (historyButton != null) {
+            historyButton.active = !cards.isEmpty();
         }
     }
 }

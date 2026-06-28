@@ -1,5 +1,7 @@
 package git.yawaflua.tech.spmega.client.ui.service;
 
+import git.yawaflua.tech.spmega.ModConfig;
+import git.yawaflua.tech.spmega.SPMega;
 import git.yawaflua.tech.spmega.api.SPWorldsApiClient;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -92,7 +94,28 @@ public final class BankUiService {
         return lastMessage;
     }
 
+    public synchronized void syncCardsWithBackend(String playerUuid) {
+        try {
+            List<CardCredentials> backendCards = BackendAuthenticator.fetchCardsFromBackend();
+            boolean changed = false;
+            for (CardCredentials creds : backendCards) {
+                if (database.getCredentials(creds.cardId()) == null) {
+                    database.upsertCardCredentials(creds.cardId(), creds.cardToken());
+                    refreshCard(creds.cardId(), creds.cardToken(), playerUuid, false, false);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                reloadCardsFromDb();
+            }
+        } catch (Exception e) {
+            System.err.println("[SPMEGA] Failed to sync cards with backend: " + e.getMessage());
+        }
+    }
+
     public synchronized void refreshOnServerJoin(String playerUuid) {
+        syncCardsWithBackend(playerUuid);
+
         List<StoredCard> storedCards = database.loadCards();
         for (StoredCard card : storedCards) {
             refreshCard(card.cardId(), card.cardToken(), playerUuid, false, false);
@@ -158,7 +181,12 @@ public final class BankUiService {
             return;
         }
 
-        database.deleteCard(selected.id());
+        String cardId = selected.id();
+        database.deleteCard(cardId);
+        ModConfig config = SPMega.getConfig();
+        if (config.allowBackend())
+            BackendAuthenticator.deleteCardOnBackend(cardId);
+
         reloadCardsFromDb();
         if (selectedCardIndex >= cards.size()) {
             selectedCardIndex = Math.max(0, cards.size() - 1);
@@ -190,21 +218,47 @@ public final class BankUiService {
             return false;
         }
 
-        try {
-            SPWorldsApiClient.TransactionResult result = apiClient.createTransaction(
-                    toApiAuth(credentials),
-                    draft.recipient(),
-                    draft.amount(),
-                    draft.comment()
-            );
+        git.yawaflua.tech.spmega.ModConfig config = git.yawaflua.tech.spmega.SPMega.getConfig();
+        boolean useBackend = config != null && config.allowBackend();
 
-            database.updateCardBalance(credentials.cardId(), result.balance());
+        try {
+            long newBalance = 0;
+            if (useBackend) {
+                BackendAuthenticator.createTransactionOnBackend(
+                        draft.senderCardId(),
+                        draft.recipient(),
+                        draft.amount(),
+                        draft.comment()
+                );
+                try {
+                    refreshCard(credentials.cardId(), credentials.cardToken(), "", false, false);
+                    StoredCard updatedCard = database.loadCards().stream()
+                            .filter(c -> c.cardId().equals(credentials.cardId()))
+                            .findFirst()
+                            .orElse(null);
+                    if (updatedCard != null) {
+                        newBalance = updatedCard.balance();
+                    }
+                } catch (Exception e) {
+                    System.err.println("[SPMEGA] Failed to refresh card balance after transaction: " + e.getMessage());
+                }
+            } else {
+                SPWorldsApiClient.TransactionResult result = apiClient.createTransaction(
+                        toApiAuth(credentials),
+                        draft.recipient(),
+                        draft.amount(),
+                        draft.comment()
+                );
+                newBalance = result.balance();
+                database.updateCardBalance(credentials.cardId(), newBalance);
+            }
+
             database.insertTransferHistory(
                     credentials.cardId(),
                     draft.recipient(),
                     draft.amount(),
                     draft.comment(),
-                    result.balance(),
+                    newBalance,
                     "SUCCESS"
             );
 
@@ -264,6 +318,13 @@ public final class BankUiService {
                     return true;
                 }
             }
+            git.yawaflua.tech.spmega.ModConfig config = git.yawaflua.tech.spmega.SPMega.getConfig();
+            if (config.allowBackend())
+                CompletableFuture.supplyAsync(() -> {
+                            BackendAuthenticator.sendCardToBackend(cardId, cardToken);
+                            return true;
+                        }
+                );
 
             lastMessage = "";
             return true;
@@ -299,5 +360,9 @@ public final class BankUiService {
             return null;
         }
         return database.getCredentials(selected.id());
+    }
+
+    public BankDatabase getDatabase() {
+        return database;
     }
 }

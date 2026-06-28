@@ -8,6 +8,7 @@
     "Dmitri 'yawaflua' Shimanski aka DOLBAYEB"
   ],
   "contact": {
+
   },
   "license": "CC BY-NC-ND 4.0",
   "icon": "icon.png",
@@ -18,6 +19,9 @@
     ],
     "client": [
       "git.yawaflua.tech.spmega.client.SPMegaClient"
+    ],
+    "modmenu": [
+      "git.yawaflua.tech.spmega.client.ModMenuIntegration"
     ],
     "main": [
       "git.yawaflua.tech.spmega.SPMega"
