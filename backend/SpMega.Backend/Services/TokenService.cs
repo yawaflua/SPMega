@@ -8,8 +8,8 @@ namespace SpMega.Backend.Services;
 public class TokenService(IConfiguration conf)
 {
     private const int AccessTokenExpirationMinutes = 24;
-    private readonly string _issuer = conf["JWT__Issuer"] ?? "spmega.il.yawaflua.tech";
-    private readonly string _secret = conf["JWT__Secret"] ?? throw new InvalidOperationException("JWT__Secret is not configured.");
+    private readonly string _issuer = conf["JWT:Issuer"] ?? conf["JWT__Issuer"] ?? "spmega.il.yawaflua.tech";
+    private readonly string _secret = conf["JWT:Secret"] ?? conf["JWT__Secret"] ?? throw new InvalidOperationException("JWT__Secret is not configured.");
 
     public string GenerateAccessToken(string userName, Guid uuid)
     {

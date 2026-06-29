@@ -19,8 +19,10 @@ public class Program
             .AddJsonFile("appsettings.Development.json", true)
             .AddEnvironmentVariables();
 
-        var encryptionKey = builder.Configuration["Encryption:Key"] ?? "a-default-fallback-only-for-dev-key-change-this!";
+        var conf = builder.Configuration;
+        var encryptionKey = conf["Encryption:Key"] ?? "a-default-fallback-only-for-dev-key-change-this!";
         EncryptionHelper.Initialize(encryptionKey);
+        _ = conf["JWT:Secret"] ?? conf["JWT__Secret"] ?? throw new InvalidOperationException("JWT__Secret is not configured.");
         
         builder.Services.AddAuthorization();
         builder.Services.AddLogging(logging =>
