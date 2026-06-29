@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,9 @@ public class Program
             .AddJsonFile("appsettings.json", false)
             .AddJsonFile("appsettings.Development.json", false)
             .AddEnvironmentVariables();
+
+        var encryptionKey = builder.Configuration["Encryption:Key"] ?? "a-default-fallback-only-for-dev-key-change-this!";
+        EncryptionHelper.Initialize(encryptionKey);
         
         builder.Services.AddAuthorization();
         builder.Services.AddLogging(logging =>
@@ -79,12 +83,11 @@ public class Program
     {
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         
-        var random = new Random(); 
         var result = new StringBuilder(length);
 
         for (var i = 0; i < length; i++)
         {
-            var index = random.Next(chars.Length);
+            var index = RandomNumberGenerator.GetInt32(chars.Length);
             result.Append(chars[index]);
         }
 

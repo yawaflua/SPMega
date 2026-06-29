@@ -112,8 +112,9 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
             Console.WriteLine(resp);
             var user = ((User)HttpContext.Items["@me"]);
             Console.WriteLine(me.id);
+            Console.WriteLine(Guid.Parse(me.minecraftUUID));
             Console.WriteLine(user.Id.ToString());
-            if (user == null || user.Id.ToString() != me.minecraftUUID)
+            if (user == null || user.Id != Guid.Parse(me.minecraftUUID))
             {
                 throw new Exception("Its not ur card");
             }

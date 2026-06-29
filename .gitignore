@@ -19,3 +19,8 @@ hs_err_pid*
 
 # Common working directory
 run
+
+backend/SpMega.Backend/src/*
+backend/SpMega.Backend/obj/*
+backend/SpMega.Backend/appsettings.json
+backend/SpMega.Backend/SpMega.Backend.http

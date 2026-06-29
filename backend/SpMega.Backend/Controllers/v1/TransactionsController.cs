@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +16,7 @@ namespace SpMega.Backend.Controllers.v1;
 [ApiController]
 public class TransactionsController(AppDbContext context, ILogger<TransactionsController> logger, IConfiguration config) : ControllerBase
 {
-   private const string BASE_URL = "https://spworlds.ru/api/public";
+   private const string BASE_URL = "https://spworlds.ru/api/public/";
 
    [HttpGet("{billId}")]
    public async Task<IActionResult> GetBill(string billId)
@@ -55,32 +56,59 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
    [Authorize]
    public async Task<ActionResult<Transaction>> CreateTransaction([FromBody] CreateTransactionBody body)
    {
-      var BearerToken = $"{body.cardToUse.Id}:{body.cardToUse.Token}";
-      string Base64BearerToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(BearerToken));
+      var user = HttpContext.Items["@me"] as User;
+      if (user == null)
+      {
+         return Unauthorized(new { error = "User not authenticated" });
+      }
+      var cardToUse = user.Cards.FirstOrDefault(l => l.Id == Guid.Parse(body.cardId));
+      if (cardToUse == null)
+      {
+         return BadRequest(new { error = "Card not found" });
+      }
 
       
-      var shortId = Program.GenerateRandomString(8);
+      var shortId = Program.GenerateRandomString(5);
+      while (true)
+      {
+            var a = await context.Transactions.FirstOrDefaultAsync(k => k.ShortId == shortId);
+            if (a != null)
+            {
+               shortId = Program.GenerateRandomString(5);
+            }
+            else
+            {
+               break;
+            }
+      }
       var transaction = new Transaction
       {
          ReceiverName = body.receiverName,
          ShortId = shortId,
          ReceiverCardNumber = body.receiverCard,
-         Sender = HttpContext.Items["@me"] as User,
-         SenderCardNumber = body.cardToUse.SpworldsID,
+         Sender = user,
+         SenderCardNumber = body.cardId,
          Amount = body.amount,
          Comment = body.comment,
       };
       try
       {
-         var uri = new Uri(new Uri(config["Url"] ?? "https://spmega.yawaflua.tech"), "/" + shortId);
+         var uri = "s.ywfl.dev" + "/" + shortId;
          var transitionInfo = new Dictionary<string, object>
          {
             { "receiver", body.receiverCard },
             { "amount", body.amount },
-            { "comment", "Чек: "+ uri }
+            { "comment", body.comment + ";Чек:"+ uri }
          };
-
-         await SendRequest(endpoint: "transactions", body: transitionInfo, AuthHeader:new("Bearer", Base64BearerToken));
+         Console.WriteLine((body.comment + ";Чек: "+ uri).Length);
+         Console.WriteLine((body.comment + ";Чек: "+ uri));
+         var resp = await SendRequest(endpoint: "transactions", body: transitionInfo,
+            AuthHeader: new("Bearer", cardToUse.Token));
+         var balance = (int?)JsonNode.Parse(resp)?["balance"];
+         if (balance == null)
+         {
+            throw new Exception("Failed to create transaction: " + resp);
+         }
 
       } catch (Exception exception)
       {
@@ -104,6 +132,7 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
       return Ok(await context.Transactions.Where(k => k.Sender.Id == ((User)HttpContext.Items["@me"]).Id).ToListAsync());
    }
    
+   [NonAction]
    internal async Task<string> SendRequest(string endpoint, AuthenticationHeaderValue AuthHeader, HttpMethod method = null, object body = null)
    {
       method ??= body == null ? HttpMethod.Get : HttpMethod.Post;
@@ -129,4 +158,4 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
       return await message.Content.ReadAsStringAsync();
    }
 }
-public record CreateTransactionBody(Card cardToUse, string receiverCard, string receiverName, string comment, int amount);
+public record CreateTransactionBody(string cardId, string receiverCard, string receiverName, string comment, int amount);
