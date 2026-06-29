@@ -3,12 +3,20 @@
   "id": "spmega",
   "version": "${version}",
   "name": "SPMega",
-  "description": "yawaflua`s SPRadar+SPMHelper mod, thats make a lot!",
+  "description": "yawaflua's SPRadar+SPMHelper mod, that's make a lot!",
   "authors": [
-    "Dmitri 'yawaflua' Shimanski aka DOLBAYEB"
+    {
+      "name": "Dmitri 'yawaflua' Shimanski aka DOLBAYEB",
+      "contact": {
+        "homepage": "https://yawaflua.tech",
+        "email": "spmega@yawaflua.tech"
+      }
+    }
   ],
   "contact": {
-
+    "homepage": "https://yawaflua.tech",
+    "issues": "https://git.yawaflua.tech/spmega",
+    "sources": "https://git.yawaflua.tech/spmega"
   },
   "license": "CC BY-NC-ND 4.0",
   "icon": "icon.png",

@@ -26,6 +26,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -166,25 +167,13 @@ public class SPMegaClient implements ClientModInitializer {
                         }
                         UiNotifications.instance().render(drawContext, client.textRenderer, scaledWidth, scaledHeight);
                     });
-//                    CompletableFuture.supplyAsync(() -> BackendAuthenticator.authenticate(client))
-//                            .thenAccept(authResult -> {
-//                                if (authResult) {
-//                                    System.out.println("SPMega: Authenticated on backend successfully.");
-//                                } else {
-//                                    System.err.println("SPMega: Authentication on backend failed");
-//                                }
-//                            })
-//                            .exceptionally(ex -> {
-//                                System.err.println("SPMega: Authentication error: " + ex.getMessage());
-//                                return null;
-//                            });
 
                 }
         );
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             if (client.player != null) {
-                BankUiService.instance().refreshOnServerJoin(client.player.getUuidAsString());
+                BankUiService.instance().refreshOnServerJoinAsync(client.player.getUuidAsString());
             }
         });
 
@@ -238,8 +227,13 @@ public class SPMegaClient implements ClientModInitializer {
         });
 
         new ChatListener().register();
-        BackendAuthenticator.authenticate(MinecraftClient.getInstance());
+        CompletableFuture.runAsync(() -> BackendAuthenticator.authenticate(MinecraftClient.getInstance()))
+                .exceptionally(throwable -> {
+                    System.err.println("[SPMEGA] Error during async authenticate: " + throwable.getMessage());
+                    return null;
+                });
         System.out.println("Author of SPMega make it with 4 cans of monster");
+        System.out.println("If u want to see more updates - give me like 10 shekels for monster plzzz");
         System.out.println("Initialized beshalom! Tieie tovim!");
     }
 }

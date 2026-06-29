@@ -12,7 +12,6 @@ import net.minecraft.text.Text;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -382,8 +381,7 @@ public class PaymentScreen extends Screen {
         }
         lastRecipientLookup = username;
 
-        CompletableFuture
-                .supplyAsync(() -> bankUiService.loadRecipientCards(username))
+        bankUiService.loadRecipientCardsAsync(username)
                 .thenAccept(cards -> {
                     if (this.client == null) {
                         return;

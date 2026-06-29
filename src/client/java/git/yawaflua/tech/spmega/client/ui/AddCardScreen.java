@@ -7,7 +7,6 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 public class AddCardScreen extends Screen {
@@ -85,8 +84,7 @@ public class AddCardScreen extends Screen {
         addButton.active = false;
         cancelButton.active = false;
 
-        CompletableFuture
-                .supplyAsync(() -> bankUiService.addCard(cardId, cardToken, playerUuid))
+        bankUiService.addCardAsync(cardId, cardToken, playerUuid)
                 .thenAccept(message -> {
                     if (this.client == null) {
                         return;

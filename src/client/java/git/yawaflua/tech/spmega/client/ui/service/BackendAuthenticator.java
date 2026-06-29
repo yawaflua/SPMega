@@ -84,12 +84,11 @@ public class BackendAuthenticator {
         }
 
         JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
-        if (json.has("sessionId")) {
-            return json.get("sessionId").getAsString();
-        } else {
+        if (!json.has("sessionId")) {
             System.err.println("[SPMEGA] Invalid response from start endpoint: " + response.body());
             throw new IOException("Invalid response from start endpoint: " + response.body());
         }
+        return json.get("sessionId").getAsString();
     }
 
     private static boolean sendAuthRequestToBackend(UUID uuid, String serverId) throws IOException, InterruptedException {
@@ -123,28 +122,27 @@ public class BackendAuthenticator {
         }
 
         JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
-        if (json.has("token")) {
-            String token = json.get("token").getAsString();
-            if (config != null) {
-                ModConfig updated = new ModConfig(
-                        config.apiDomain(),
-                        token,
-                        config.allowBackend(),
-                        config.signQuickPayEnabled(),
-                        config.gpsEnabled(),
-                        config.gpsPosition()
-                );
-                SPMega.setConfig(updated);
-                System.out.println("[SPMEGA] Backend auth successful, saved token.");
-                return true;
-            } else {
-                System.err.println("[SPMEGA] Config is null, cannot save token.");
-                throw new IOException("Config is null, cannot save token.");
-            }
-        } else {
+        if (!json.has("token")) {
             System.err.println("[SPMEGA] Invalid response from validate endpoint: " + response.body());
             throw new IOException("Invalid response from validate endpoint: " + response.body());
         }
+        if (config == null) {
+            System.err.println("[SPMEGA] Config is null, cannot save token.");
+            throw new IOException("Config is null, cannot save token.");
+        }
+
+        String token = json.get("token").getAsString();
+        ModConfig updated = new ModConfig(
+                config.apiDomain(),
+                token,
+                config.allowBackend(),
+                config.signQuickPayEnabled(),
+                config.gpsEnabled(),
+                config.gpsPosition()
+        );
+        SPMega.setConfig(updated);
+        System.out.println("[SPMEGA] Backend auth successful, saved token.");
+        return true;
     }
 
     public static void sendCardToBackend(String cardId, String cardToken) {
@@ -223,19 +221,13 @@ public class BackendAuthenticator {
         List<CardCredentials> cards = new ArrayList<>();
         for (com.google.gson.JsonElement el : cardsArray) {
             JsonObject cardJson = el.getAsJsonObject();
-            String cardId = "";
-            if (cardJson.has("cardId") && !cardJson.get("cardId").isJsonNull()) {
-                cardId = cardJson.get("cardId").getAsString();
-            } else if (cardJson.has("id") && !cardJson.get("id").isJsonNull()) {
-                cardId = cardJson.get("id").getAsString();
-            }
+            String cardId = cardJson.has("cardId") && !cardJson.get("cardId").isJsonNull()
+                    ? cardJson.get("cardId").getAsString()
+                    : (cardJson.has("id") && !cardJson.get("id").isJsonNull() ? cardJson.get("id").getAsString() : "");
 
-            String cardToken = "";
-            if (cardJson.has("cardToken") && !cardJson.get("cardToken").isJsonNull()) {
-                cardToken = cardJson.get("cardToken").getAsString();
-            } else if (cardJson.has("token") && !cardJson.get("token").isJsonNull()) {
-                cardToken = cardJson.get("token").getAsString();
-            }
+            String cardToken = cardJson.has("cardToken") && !cardJson.get("cardToken").isJsonNull()
+                    ? cardJson.get("cardToken").getAsString()
+                    : (cardJson.has("token") && !cardJson.get("token").isJsonNull() ? cardJson.get("token").getAsString() : "");
 
             if (!cardId.isEmpty() && !cardToken.isEmpty()) {
                 cards.add(new CardCredentials(cardId, cardToken));
@@ -299,10 +291,10 @@ public class BackendAuthenticator {
         String url = apiDomain + "/api/v1/transactions";
 
         JsonObject jsonPayload = new JsonObject();
-        jsonPayload.addProperty("senderCardId", senderCardId);
+        jsonPayload.addProperty("cardToUse", senderCardId);
         jsonPayload.addProperty("cardId", senderCardId);
-        jsonPayload.addProperty("receiver", receiver);
-        jsonPayload.addProperty("recipient", receiver);
+        jsonPayload.addProperty("receiverCard", receiver);
+        jsonPayload.addProperty("receiverName", receiver);
         jsonPayload.addProperty("amount", amount);
         jsonPayload.addProperty("comment", comment);
         String requestBody = jsonPayload.toString();
@@ -316,11 +308,10 @@ public class BackendAuthenticator {
                 .build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() == 200 || response.statusCode() == 201 || response.statusCode() == 204) {
-            return true;
-        } else {
+        if (response.statusCode() != 200 && response.statusCode() != 201 && response.statusCode() != 204) {
             throw new IOException("Server returned status code " + response.statusCode() + ": " + response.body());
         }
+        return true;
     }
 
     public static List<BankDatabase.LocalTransaction> fetchTransactionsFromBackend(String cardId) throws IOException, InterruptedException {

@@ -9,7 +9,6 @@ import net.minecraft.text.Text;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 public class CardScreen extends Screen {
     private final Screen parent;
@@ -46,25 +45,30 @@ public class CardScreen extends Screen {
         }
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Удалить"), button -> {
-            CompletableFuture.supplyAsync(() -> {
-                bankUiService.removeSelectedCard();
-                return true;
-            });
-            notifications.showMessage(bankUiService.getLastMessage());
-            this.clearAndInit();
+            bankUiService.removeSelectedCardAsync()
+                    .thenAccept(message -> {
+                        if (this.client != null) {
+                            this.client.execute(() -> {
+                                notifications.showMessage(message);
+                                this.clearAndInit();
+                            });
+                        }
+                    });
         }).dimensions(rightX, startY, columnWidth, 20).build());
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Обновить"), button -> {
             String playerUuid = this.client != null && this.client.player != null
                     ? this.client.player.getUuidAsString()
                     : "";
-            CompletableFuture.supplyAsync(() -> {
-                bankUiService.refreshSelectedCard(playerUuid);
-                return true;
-            });
-            String message = bankUiService.getLastMessage().isBlank() ? "Карта обновлена" : bankUiService.getLastMessage();
-            notifications.showMessage(message);
-            this.clearAndInit();
+            bankUiService.refreshSelectedCardAsync(playerUuid)
+                    .thenAccept(message -> {
+                        if (this.client != null) {
+                            this.client.execute(() -> {
+                                notifications.showMessage(message);
+                                this.clearAndInit();
+                            });
+                        }
+                    });
         }).dimensions(rightX, startY + 24, columnWidth, 20).build());
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Добавить новую"), button -> {

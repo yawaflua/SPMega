@@ -9,7 +9,6 @@ import net.minecraft.text.Text;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
 public class ChatListener {
@@ -57,8 +56,7 @@ public class ChatListener {
                 if (client.player != null) {
                     String playerUuid = client.player.getUuidAsString();
 
-                    CompletableFuture
-                            .supplyAsync(() -> BankUiService.instance().addCard(cardId, tokenId, playerUuid))
+                    BankUiService.instance().addCardAsync(cardId, tokenId, playerUuid)
                             .thenAccept(msg -> {
                                 if (client == null) {
                                     return;
