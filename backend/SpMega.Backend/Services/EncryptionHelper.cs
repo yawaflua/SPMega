@@ -47,7 +47,6 @@ public static class EncryptionHelper
         using var encryptor = aes.CreateEncryptor(aes.Key, iv);
         using var ms = new MemoryStream();
         
-        // Write the IV to the beginning of the stream so it is stored alongside the ciphertext
         ms.Write(iv, 0, iv.Length);
 
         using (var cs = new CryptoStream(ms, encryptor, CryptoStreamMode.Write))
