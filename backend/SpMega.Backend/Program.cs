@@ -15,8 +15,8 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.Configuration
-            .AddJsonFile("appsettings.json", false)
-            .AddJsonFile("appsettings.Development.json", false)
+            .AddJsonFile("appsettings.json", true)
+            .AddJsonFile("appsettings.Development.json", true)
             .AddEnvironmentVariables();
 
         var encryptionKey = builder.Configuration["Encryption:Key"] ?? "a-default-fallback-only-for-dev-key-change-this!";
