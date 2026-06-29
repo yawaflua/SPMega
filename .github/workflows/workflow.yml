@@ -24,7 +24,7 @@ jobs:
       - name: Build
         run: dotnet build --no-restore backend/SpMega.Backend/SpMega.Backend.csproj
       - name: Test
-        run: dotnet test --no-build --verbosity normal --project backend/SpMega.Backend/SpMega.Backend.csproj
+        run: dotnet test --no-build --verbosity normal backend/SpMega.Backend/SpMega.Backend.csproj
 
   compose:
     name: Push Docker image to ghcr.io
