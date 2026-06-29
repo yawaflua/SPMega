@@ -5,6 +5,8 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MongoDB.Bson;
+using MongoDB.Driver;
 using SpMega.Backend.Persistent.Database;
 using SpMega.Backend.Persistent.Models.Transactions;
 using SpMega.Backend.Persistent.Models.Users;
@@ -16,6 +18,7 @@ namespace SpMega.Backend.Controllers.v1;
 [ApiController]
 public class TransactionsController(AppDbContext context, ILogger<TransactionsController> logger, IConfiguration config) : ControllerBase
 {
+   private const int LIMIT = 10;
    private const string BASE_URL = "https://spworlds.ru/api/public/";
 
    [HttpGet("{billId}")]
@@ -127,9 +130,13 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
 
    [HttpGet()]
    [Authorize]
-   public async Task<ActionResult<List<Transaction>>> GetAllTransactions()
+   public async Task<ActionResult<List<Transaction>>> GetAllTransactions([FromQuery] int p = 1)
    {
-      return Ok(await context.Transactions.Where(k => k.Sender.Id == ((User)HttpContext.Items["@me"]).Id).ToListAsync());
+      return Ok(await context.Transactions
+         .Where(k => EF.Property<Guid>(k, "SenderId") == ((User)HttpContext.Items["@me"]).Id)
+         .Skip(p - 1 * LIMIT)
+         .Take(p * LIMIT)
+         .ToListAsync());
    }
    
    [NonAction]

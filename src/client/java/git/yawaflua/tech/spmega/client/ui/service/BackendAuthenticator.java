@@ -1,5 +1,6 @@
 package git.yawaflua.tech.spmega.client.ui.service;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.authlib.exceptions.AuthenticationException;
@@ -314,9 +315,11 @@ public class BackendAuthenticator {
         return true;
     }
 
-    public static List<BankDatabase.LocalTransaction> fetchTransactionsFromBackend(String cardId) throws IOException, InterruptedException {
+    public static List<BankDatabase.LocalTransaction> fetchTransactionsFromBackend(String cardId, int page) throws IOException, InterruptedException {
+        System.out.println("[SPMEGA] fetchTransactionsFromBackend called for cardId: " + cardId + ", page: " + page);
         ModConfig config = SPMega.getConfig();
         if (config == null || !config.allowBackend()) {
+            System.out.println("[SPMEGA] fetchTransactionsFromBackend aborted: config is null or backend not allowed.");
             return List.of();
         }
 
@@ -328,7 +331,8 @@ public class BackendAuthenticator {
             apiDomain = apiDomain.substring(0, apiDomain.length() - 1);
         }
 
-        String url = apiDomain + "/api/v1/transactions?cardId=" + cardId;
+        String url = apiDomain + "/api/v1/transactions?p=" + page;
+        System.out.println("[SPMEGA] Requesting transactions from URL: " + url);
 
         HttpClient httpClient = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
@@ -338,22 +342,85 @@ public class BackendAuthenticator {
                 .build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        System.out.println("[SPMEGA] Response status code: " + response.statusCode());
         if (response.statusCode() != 200) {
+            System.err.println("[SPMEGA] Failed response body: " + response.body());
             throw new IOException("Server returned status code " + response.statusCode() + " on fetch transactions.");
         }
 
-        com.google.gson.JsonArray transactionsArray = JsonParser.parseString(response.body()).getAsJsonArray();
+        String body = response.body();
+        System.out.println("[SPMEGA] Response body: " + (body.length() > 500 ? body.substring(0, 500) + "..." : body));
+
+        JsonElement parsed = JsonParser.parseString(body);
+        com.google.gson.JsonArray transactionsArray = null;
+
+        if (parsed.isJsonArray()) {
+            transactionsArray = parsed.getAsJsonArray();
+        } else if (parsed.isJsonObject()) {
+            JsonObject obj = parsed.getAsJsonObject();
+            if (obj.has("$values") && obj.get("$values").isJsonArray()) {
+                transactionsArray = obj.getAsJsonArray("$values");
+            } else if (obj.has("transactions") && obj.get("transactions").isJsonArray()) {
+                transactionsArray = obj.getAsJsonArray("transactions");
+            } else if (obj.has("values") && obj.get("values").isJsonArray()) {
+                transactionsArray = obj.getAsJsonArray("values");
+            }
+        }
+
+        if (transactionsArray == null) {
+            System.err.println("[SPMEGA] Response body is not a JSON array or wrapped array: " + body);
+            return List.of();
+        }
+
+        System.out.println("[SPMEGA] Total transactions returned from server: " + transactionsArray.size());
         List<BankDatabase.LocalTransaction> list = new ArrayList<>();
         for (com.google.gson.JsonElement el : transactionsArray) {
-            JsonObject json = el.getAsJsonObject();
-            String receiver = json.has("receiver") ? json.get("receiver").getAsString() : (json.has("recipient") ? json.get("recipient").getAsString() : "unknown");
-            long amount = json.has("amount") ? json.get("amount").getAsLong() : 0L;
-            String comment = json.has("comment") && !json.get("comment").isJsonNull() ? json.get("comment").getAsString() : "";
-            String status = json.has("status") ? json.get("status").getAsString() : "SUCCESS";
-            String createdAt = json.has("createdAt") ? json.get("createdAt").getAsString() : (json.has("created_at") ? json.get("created_at").getAsString() : "");
+            try {
+                JsonObject json = el.getAsJsonObject();
 
-            list.add(new BankDatabase.LocalTransaction(receiver, amount, comment, status, createdAt));
+                // Check cardId filter
+                String senderCardNumber = "";
+                if (json.has("senderCardNumber") && !json.get("senderCardNumber").isJsonNull()) {
+                    senderCardNumber = json.get("senderCardNumber").getAsString();
+                }
+
+                if (!senderCardNumber.equalsIgnoreCase(cardId)) {
+                    continue;
+                }
+
+                String receiver = "unknown";
+                if (json.has("receiver") && !json.get("receiver").isJsonNull()) {
+                    receiver = json.get("receiver").getAsString();
+                } else if (json.has("receiverName") && !json.get("receiverName").isJsonNull()) {
+                    receiver = json.get("receiverName").getAsString();
+                } else if (json.has("receiverCardNumber") && !json.get("receiverCardNumber").isJsonNull()) {
+                    receiver = json.get("receiverCardNumber").getAsString();
+                } else if (json.has("recipient") && !json.get("recipient").isJsonNull()) {
+                    receiver = json.get("recipient").getAsString();
+                }
+
+                long amount = json.has("amount") ? json.get("amount").getAsLong() : 0L;
+                String comment = json.has("comment") && !json.get("comment").isJsonNull() ? json.get("comment").getAsString() : "";
+                String status = json.has("status") && !json.get("status").isJsonNull() ? json.get("status").getAsString() : "SUCCESS";
+
+                String createdAt = "";
+                if (json.has("transactionDate") && !json.get("transactionDate").isJsonNull()) {
+                    createdAt = json.get("transactionDate").getAsString();
+                } else if (json.has("createdAt") && !json.get("createdAt").isJsonNull()) {
+                    createdAt = json.get("createdAt").getAsString();
+                } else if (json.has("created_at") && !json.get("created_at").isJsonNull()) {
+                    createdAt = json.get("created_at").getAsString();
+                }
+
+                System.out.printf("[SPMEGA] Parsed transaction: %s -> %s, amount=%d, comment=%s, status=%s%n",
+                        createdAt, receiver, amount, comment, status);
+
+                list.add(new BankDatabase.LocalTransaction(receiver, amount, comment, status, createdAt));
+            } catch (Exception parseEx) {
+                System.err.println("[SPMEGA] Error parsing transaction element: " + parseEx.getMessage());
+            }
         }
+        System.out.println("[SPMEGA] Returning " + list.size() + " filtered transactions for card " + cardId);
         return list;
     }
 }

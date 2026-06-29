@@ -3,6 +3,7 @@ package git.yawaflua.tech.spmega.client.ui;
 import git.yawaflua.tech.spmega.client.ui.service.BackendAuthenticator;
 import git.yawaflua.tech.spmega.client.ui.service.BankDatabase.LocalTransaction;
 import git.yawaflua.tech.spmega.client.ui.service.BankUiService;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -19,6 +20,8 @@ public class TransactionHistoryScreen extends Screen {
     private final List<LocalTransaction> transactions = new ArrayList<>();
     private boolean loading = true;
     private String errorMessage = "";
+    private int scrollOffset = 0;
+    private int currentPage = 1;
 
     public TransactionHistoryScreen(Screen parent, String cardId, String cardTitle) {
         super(Text.literal("История транзакций"));
@@ -36,7 +39,65 @@ public class TransactionHistoryScreen extends Screen {
                 .dimensions(centerX - 60, startY + 10, 120, 20)
                 .build());
 
+        // Scroll Up/Down buttons
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("▲"), button -> scrollUp())
+                .dimensions(centerX + 140, 65, 20, 20)
+                .build());
+
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("▼"), button -> scrollDown())
+                .dimensions(centerX + 140, 155, 20, 20)
+                .build());
+
+        // Prev Page button
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("<"), button -> {
+            if (currentPage > 1) {
+                currentPage--;
+                scrollOffset = 0;
+                loadTransactions();
+            }
+        }).dimensions(centerX - 100, startY - 15, 30, 20).build());
+
+        // Next Page button
+        this.addDrawableChild(ButtonWidget.builder(Text.literal(">"), button -> {
+            currentPage++;
+            scrollOffset = 0;
+            loadTransactions();
+        }).dimensions(centerX + 70, startY - 15, 30, 20).build());
+
         loadTransactions();
+    }
+
+    private void scrollUp() {
+        if (scrollOffset > 0) {
+            scrollOffset--;
+        }
+    }
+
+    private void scrollDown() {
+        if (scrollOffset < Math.max(0, transactions.size() - 6)) {
+            scrollOffset++;
+        }
+    }
+
+    // Support pre-1.20.2 mouse scroll
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        if (amount > 0) {
+            scrollUp();
+        } else if (amount < 0) {
+            scrollDown();
+        }
+        return true;
+    }
+
+    // Support 1.20.2+ mouse scroll
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (verticalAmount > 0) {
+            scrollUp();
+        } else if (verticalAmount < 0) {
+            scrollDown();
+        }
+        return true;
     }
 
     private void loadTransactions() {
@@ -44,32 +105,46 @@ public class TransactionHistoryScreen extends Screen {
         errorMessage = "";
         transactions.clear();
 
+        UiNotifications.instance().show(Text.literal("Загрузка..."));
+
         CompletableFuture.runAsync(() -> {
             try {
+                System.out.println("[SPMEGA] Transaction history loading started for card: " + cardId + ", page: " + currentPage);
                 List<LocalTransaction> list = null;
                 git.yawaflua.tech.spmega.ModConfig config = git.yawaflua.tech.spmega.SPMega.getConfig();
                 if (config != null && config.allowBackend()) {
                     try {
-                        list = BackendAuthenticator.fetchTransactionsFromBackend(cardId);
+                        list = BackendAuthenticator.fetchTransactionsFromBackend(cardId, currentPage);
+                        System.out.println("[SPMEGA] Fetched " + (list != null ? list.size() : "null") + " transactions from backend.");
                     } catch (Exception e) {
                         System.err.println("[SPMEGA] Failed to fetch transactions from server, falling back to DB: " + e.getMessage());
+                        e.printStackTrace();
                     }
                 }
 
                 if (list == null) {
                     list = BankUiService.instance().getDatabase().loadTransferHistory(cardId);
+                    System.out.println("[SPMEGA] Loaded " + (list != null ? list.size() : "null") + " transactions from database.");
                 }
 
-                List<LocalTransaction> finalList = list;
-                if (this.client != null) {
-                    this.client.execute(() -> {
+                List<LocalTransaction> finalList = list != null ? list : new ArrayList<>();
+                MinecraftClient minecraftClient = MinecraftClient.getInstance();
+                if (minecraftClient != null) {
+                    minecraftClient.execute(() -> {
+                        System.out.println("[SPMEGA] Setting transactions list on main thread. Count: " + finalList.size());
                         this.transactions.addAll(finalList);
+                        this.scrollOffset = 0;
                         this.loading = false;
                     });
+                } else {
+                    System.out.println("[SPMEGA] MinecraftClient.getInstance() is null in loadTransactions callback!");
                 }
             } catch (Exception e) {
-                if (this.client != null) {
-                    this.client.execute(() -> {
+                System.err.println("[SPMEGA] Outer exception in loadTransactions: " + e.getMessage());
+                e.printStackTrace();
+                MinecraftClient minecraftClient = MinecraftClient.getInstance();
+                if (minecraftClient != null) {
+                    minecraftClient.execute(() -> {
                         this.errorMessage = e.getMessage();
                         this.loading = false;
                     });
@@ -91,30 +166,38 @@ public class TransactionHistoryScreen extends Screen {
 
         int centerX = this.width / 2;
         int startY = 50;
+        int bottomStartY = this.height / 2 + 50;
 
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, 20, 0xFFFFFF);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Карта: " + cardTitle), centerX, 35, 0xBFBFBF);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, 20, 0xFFFFFFFF);
+        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Карта: " + cardTitle), centerX, 35, 0xFFBFBFBF);
+        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Стр. " + currentPage), centerX, bottomStartY - 9, 0xFFFFFFFF);
 
         if (loading) {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Загрузка транзакций..."), centerX, this.height / 2 - 10, 0xCCCCCC);
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Загрузка транзакций..."), centerX, this.height / 2 - 10, 0xFFCCCCCC);
         } else if (!errorMessage.isEmpty()) {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Ошибка: " + errorMessage), centerX, this.height / 2 - 10, 0xFF5555);
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Ошибка: " + errorMessage), centerX, this.height / 2 - 10, 0xFFFF5555);
         } else if (transactions.isEmpty()) {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Транзакций не найдено"), centerX, this.height / 2 - 10, 0xCCCCCC);
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Транзакций не найдено"), centerX, this.height / 2 - 10, 0xFFCCCCCC);
         } else {
             int y = startY + 15;
-            for (int i = 0; i < Math.min(6, transactions.size()); i++) {
-                LocalTransaction tx = transactions.get(i);
+            int limit = Math.min(6, transactions.size() - scrollOffset);
+            for (int i = 0; i < limit; i++) {
+                LocalTransaction tx = transactions.get(scrollOffset + i);
 
                 String amountText = tx.amount() + " АР";
                 String dateText = tx.createdAt();
+                if (dateText == null) {
+                    dateText = "";
+                }
                 if (dateText.length() > 19) {
                     dateText = dateText.substring(0, 19).replace("T", " ");
                 }
                 String commentText = tx.comment().isEmpty() ? "" : " (" + tx.comment() + ")";
 
                 String line = String.format("%s -> %s | %s%s", dateText, tx.receiver(), amountText, commentText);
-                int color = tx.status().equalsIgnoreCase("SUCCESS") ? 0x55FF55 : 0xFF5555;
+
+                String status = tx.status();
+                int color = (status != null && status.equalsIgnoreCase("SUCCESS")) ? 0xFF55FF55 : 0xFFFF5555;
 
                 context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(line), centerX, y, color);
                 y += 18;
