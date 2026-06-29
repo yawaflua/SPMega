@@ -45,7 +45,9 @@
   "depends": {
     "fabricloader": ">=${loader_version}",
     "fabric-api": "*",
-    "minecraft": "${minecraft_version}",
+    "minecraft": "${minecraft_version}"
+  },
+  "suggests": {
     "cloth-config2": ">=${cloth_config_version}"
   }
 }
