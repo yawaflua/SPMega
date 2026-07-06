@@ -9,6 +9,8 @@ public class Card
     public string Name { get; set; }
     public string SpworldsID { get; set; }
     public string Token { get; set; }
+
+    public int Balance { get; set; } = 0;
     
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; }

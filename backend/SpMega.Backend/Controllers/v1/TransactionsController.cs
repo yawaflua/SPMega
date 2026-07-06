@@ -70,6 +70,11 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
          return BadRequest(new { error = "Card not found" });
       }
 
+      if (cardToUse.Balance != -1 && cardToUse.Balance < body.amount)
+      {
+         return BadRequest(new { error = "Insufficient balance" });
+      }
+
       
       var shortId = Program.GenerateRandomString(5);
       while (true)
@@ -101,17 +106,18 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
          {
             { "receiver", body.receiverCard },
             { "amount", body.amount },
-            { "comment", body.comment + ";Чек:"+ uri }
+            { "comment", (body.comment)[8..] + "..;Чек:"+ uri }
          };
-         Console.WriteLine((body.comment + ";Чек: "+ uri).Length);
-         Console.WriteLine((body.comment + ";Чек: "+ uri));
-         var resp = await SendRequest(endpoint: "transactions", body: transitionInfo,
-            AuthHeader: new("Bearer", cardToUse.Token));
+         Console.WriteLine(((body.comment)[8..] + "..;Чек:"+ uri).Length);
+         Console.WriteLine(((body.comment)[8..] + "..;Чек:"+ uri));
+         var resp = await SendRequest(endpoint: "transactions", body: transitionInfo, AuthHeader: new("Bearer", cardToUse.Token));
          var balance = (int?)JsonNode.Parse(resp)?["balance"];
          if (balance == null)
          {
             throw new Exception("Failed to create transaction: " + resp);
          }
+         cardToUse.Balance = balance.Value;
+         
 
       } catch (Exception exception)
       {

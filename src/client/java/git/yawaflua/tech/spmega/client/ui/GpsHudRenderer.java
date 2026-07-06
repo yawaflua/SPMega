@@ -54,7 +54,8 @@ public final class GpsHudRenderer {
         try {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://spm-map.tonyaleksandr.ru/api/map/territories"))
+                    .uri(URI.create("https://map.sp-mini.ru/api/map/territories"))
+                    // Не понимаю смысла менять с домена со своим именем АКА реклама личного бренда на безликий сп-мини.ру, пахнет дешевой подделкой
                     .GET()
                     .build();
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());

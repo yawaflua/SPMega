@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -109,15 +110,17 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
             string Base64BearerToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(BearerToken));
             var resp = await SendRequest("/accounts/me", new("Bearer", Base64BearerToken));
             var me = JsonSerializer.Deserialize<UserAccountDTO>(resp);
-            Console.WriteLine(resp);
             var user = ((User)HttpContext.Items["@me"]);
-            Console.WriteLine(me.id);
-            Console.WriteLine(Guid.Parse(me.minecraftUUID));
-            Console.WriteLine(user.Id.ToString());
+            
             if (user == null || user.Id != Guid.Parse(me.minecraftUUID))
             {
                 throw new Exception("Its not ur card");
             }
+            
+            var balanceResp = await SendRequest("/public/card", new("Bearer", Base64BearerToken));
+            var balance = (int?)JsonNode.Parse(balanceResp)?["balance"];
+            
+            
 
             var card = me.cards.First(k => k.id == body.id);
             var existingCard = user.Cards.FirstOrDefault(k => k.Id.ToString() == card.id);
@@ -126,6 +129,7 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
                 {
                     Id =  Guid.Parse(card.id),
                     Name = card.name,
+                    Balance = balance ?? -1,
                     SpworldsID = card.number,
                     Token = Base64BearerToken,
                     CreatedAt = DateTime.UtcNow,
@@ -136,6 +140,7 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
                 existingCard.Name = card.name;
                 existingCard.SpworldsID = card.number;
                 existingCard.Token = Base64BearerToken;
+                existingCard.Balance = balance ?? -1;
                 existingCard.UpdatedAt = DateTime.UtcNow;
                 
             }
