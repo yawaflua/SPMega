@@ -1,3 +1,4 @@
+![westandwith](https://share.nikgob.com/westand-withisrael)
 # SPMega
 
 SPMega - клиентский Fabric-мод с банковым UI для работы с картами и переводами через API `spworlds.ru`.
