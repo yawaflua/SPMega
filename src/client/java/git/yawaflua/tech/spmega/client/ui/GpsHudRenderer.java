@@ -3,6 +3,7 @@ package git.yawaflua.tech.spmega.client.ui;
 import com.google.gson.Gson;
 import git.yawaflua.tech.spmega.GpsHudPosition;
 import git.yawaflua.tech.spmega.SPMega;
+import git.yawaflua.tech.spmega.client.telemetry.InstrumentedHttpClient;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -10,9 +11,7 @@ import net.minecraft.text.Text;
 import net.minecraft.world.World;
 
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -52,13 +51,12 @@ public final class GpsHudRenderer {
 
     private void fetchCities() {
         try {
-            HttpClient client = HttpClient.newHttpClient();
+            InstrumentedHttpClient client = new InstrumentedHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("https://map.sp-mini.ru/api/map/territories"))
-                    // Не понимаю смысла менять с домена со своим именем АКА реклама личного бренда на безликий сп-мини.ру, пахнет дешевой подделкой
                     .GET()
                     .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            var response = client.send(request);
             if (response.statusCode() == 200) {
                 TerritoryWrapper[] parsed = new Gson().fromJson(response.body(), TerritoryWrapper[].class);
                 if (parsed != null) {

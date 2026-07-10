@@ -66,7 +66,26 @@ public final class ConfigManager {
             shouldSave = true;
         }
 
-        ModConfig config = new ModConfig(apiDomain, apiToken, allowAccess, signQuickPayEnabled, gpsEnabled, gpsPosition);
+        boolean telemetryEnabled = readBoolean(properties, "telemetry.enabled", defaults.telemetryEnabled());
+        String rawTelemetry = properties.getProperty("telemetry.enabled");
+        if (rawTelemetry == null || !Boolean.toString(telemetryEnabled).equalsIgnoreCase(rawTelemetry.trim())) {
+            shouldSave = true;
+        }
+
+        int telemetryIntervalSeconds = readInt(properties, "telemetry.intervalSeconds", defaults.telemetryIntervalSeconds());
+        String rawInterval = properties.getProperty("telemetry.intervalSeconds");
+        if (rawInterval == null || !Integer.toString(telemetryIntervalSeconds).equals(rawInterval.trim())) {
+            shouldSave = true;
+        }
+
+        boolean telemetryCollectSystemInfo = readBoolean(properties, "telemetry.collectSystemInfo", defaults.telemetryCollectSystemInfo());
+        String rawSysInfo = properties.getProperty("telemetry.collectSystemInfo");
+        if (rawSysInfo == null || !Boolean.toString(telemetryCollectSystemInfo).equalsIgnoreCase(rawSysInfo.trim())) {
+            shouldSave = true;
+        }
+
+        ModConfig config = new ModConfig(apiDomain, apiToken, allowAccess, signQuickPayEnabled, gpsEnabled, gpsPosition,
+                telemetryEnabled, telemetryIntervalSeconds, telemetryCollectSystemInfo);
 
 
         if (shouldSave) {
@@ -129,6 +148,9 @@ public final class ConfigManager {
         properties.setProperty("sign.quickPay.enabled", Boolean.toString(config.signQuickPayEnabled()));
         properties.setProperty("gps.enabled", Boolean.toString(config.gpsEnabled()));
         properties.setProperty("gps.position", config.gpsPosition().name());
+        properties.setProperty("telemetry.enabled", Boolean.toString(config.telemetryEnabled()));
+        properties.setProperty("telemetry.intervalSeconds", Integer.toString(config.telemetryIntervalSeconds()));
+        properties.setProperty("telemetry.collectSystemInfo", Boolean.toString(config.telemetryCollectSystemInfo()));
 
         try {
             Files.createDirectories(configPath.getParent());
@@ -137,6 +159,18 @@ public final class ConfigManager {
             }
         } catch (IOException exception) {
             throw new RuntimeException("Failed to save config: " + configPath, exception);
+        }
+    }
+
+    private static int readInt(Properties properties, String key, int fallback) {
+        String value = properties.getProperty(key);
+        if (value == null || value.trim().isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException exception) {
+            return fallback;
         }
     }
 

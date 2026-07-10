@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MongoDB.EntityFrameworkCore.Extensions;
+using SpMega.Backend.Persistent.Models.Telemetry;
 using SpMega.Backend.Persistent.Models.Transactions;
 using SpMega.Backend.Persistent.Models.Users;
 using SpMega.Backend.Services;
@@ -11,6 +12,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     internal DbSet<Transaction> Transactions { get; set; }
     internal DbSet<User> Users { get; set; }
     internal DbSet<UserSession> UserSessions { get; set; }
+    internal DbSet<ModTelemetryDocument> ModTelemetry { get; set; }
+    internal DbSet<BackendRequestTelemetryDocument> BackendRequestTelemetry { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

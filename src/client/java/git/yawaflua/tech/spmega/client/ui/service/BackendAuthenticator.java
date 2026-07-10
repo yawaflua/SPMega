@@ -7,12 +7,12 @@ import com.mojang.authlib.exceptions.AuthenticationException;
 import com.mojang.authlib.minecraft.MinecraftSessionService;
 import git.yawaflua.tech.spmega.ModConfig;
 import git.yawaflua.tech.spmega.SPMega;
+import git.yawaflua.tech.spmega.client.telemetry.InstrumentedHttpClient;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.session.Session;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
@@ -71,14 +71,14 @@ public class BackendAuthenticator {
 
         String url = apiDomain + "/api/v1/auth/start";
 
-        HttpClient httpClient = HttpClient.newHttpClient();
+        InstrumentedHttpClient httpClient = new InstrumentedHttpClient();
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .method("POST", HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(request);
         if (response.statusCode() != 200) {
             System.err.println("[SPMEGA] Server returned status code " + response.statusCode() + " on start: " + response.body());
             throw new IOException("Server returned status code " + response.statusCode() + " on start: " + response.body());
@@ -109,14 +109,14 @@ public class BackendAuthenticator {
 
         String url = apiDomain + "/api/v1/auth/validate";
 
-        HttpClient httpClient = HttpClient.newHttpClient();
+        InstrumentedHttpClient httpClient = new InstrumentedHttpClient();
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(request);
         if (response.statusCode() != 200) {
             System.err.println("[SPMEGA] Server returned status code " + response.statusCode() + " on validate: " + response.body());
             throw new IOException("Server returned status code " + response.statusCode() + " on validate: " + response.body());
@@ -139,7 +139,10 @@ public class BackendAuthenticator {
                 config.allowBackend(),
                 config.signQuickPayEnabled(),
                 config.gpsEnabled(),
-                config.gpsPosition()
+                config.gpsPosition(),
+                config.telemetryEnabled(),
+                config.telemetryIntervalSeconds(),
+                config.telemetryCollectSystemInfo()
         );
         SPMega.setConfig(updated);
         System.out.println("[SPMEGA] Backend auth successful, saved token.");
@@ -167,7 +170,7 @@ public class BackendAuthenticator {
         jsonPayload.addProperty("token", cardToken);
         String requestBody = jsonPayload.toString();
 
-        HttpClient httpClient = HttpClient.newHttpClient();
+        InstrumentedHttpClient httpClient = new InstrumentedHttpClient();
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
@@ -175,7 +178,7 @@ public class BackendAuthenticator {
                 .PUT(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+        httpClient.sendAsync(request)
                 .thenAccept(response -> {
                     if (response.statusCode() != 200 && response.statusCode() != 204) {
                         System.err.println("[SPMEGA] Failed to send card to backend: status code "
@@ -206,14 +209,14 @@ public class BackendAuthenticator {
 
         String url = apiDomain + "/api/v1/auth/cards";
 
-        HttpClient httpClient = HttpClient.newHttpClient();
+        InstrumentedHttpClient httpClient = new InstrumentedHttpClient();
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .header("Accept", "application/json")
                 .header("Authorization", "Bearer " + config.apiToken())
                 .GET()
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(request);
         if (response.statusCode() != 200) {
             throw new IOException("Server returned status code " + response.statusCode() + " on fetch cards.");
         }
@@ -253,14 +256,14 @@ public class BackendAuthenticator {
 
         String url = apiDomain + "/api/v1/auth/cards/" + cardId;
 
-        HttpClient httpClient = HttpClient.newHttpClient();
+        InstrumentedHttpClient httpClient = new InstrumentedHttpClient();
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .header("Accept", "application/json")
                 .header("Authorization", "Bearer " + config.apiToken())
                 .DELETE()
                 .build();
 
-        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+        httpClient.sendAsync(request)
                 .thenAccept(response -> {
                     if (response.statusCode() != 200 && response.statusCode() != 204) {
                         System.err.println("[SPMEGA] Failed to delete card from backend: status code "
@@ -300,7 +303,7 @@ public class BackendAuthenticator {
         jsonPayload.addProperty("comment", comment);
         String requestBody = jsonPayload.toString();
 
-        HttpClient httpClient = HttpClient.newHttpClient();
+        InstrumentedHttpClient httpClient = new InstrumentedHttpClient();
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
@@ -308,7 +311,7 @@ public class BackendAuthenticator {
                 .PUT(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(request);
         if (response.statusCode() != 200 && response.statusCode() != 201 && response.statusCode() != 204) {
             throw new IOException("Server returned status code " + response.statusCode() + ": " + response.body());
         }
@@ -334,14 +337,14 @@ public class BackendAuthenticator {
         String url = apiDomain + "/api/v1/transactions?p=" + page;
         System.out.println("[SPMEGA] Requesting transactions from URL: " + url);
 
-        HttpClient httpClient = HttpClient.newHttpClient();
+        InstrumentedHttpClient httpClient = new InstrumentedHttpClient();
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .header("Accept", "application/json")
                 .header("Authorization", "Bearer " + config.apiToken())
                 .GET()
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(request);
         System.out.println("[SPMEGA] Response status code: " + response.statusCode());
         if (response.statusCode() != 200) {
             System.err.println("[SPMEGA] Failed response body: " + response.body());

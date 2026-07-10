@@ -3,6 +3,7 @@ package git.yawaflua.tech.spmega.client;
 import git.yawaflua.tech.spmega.ModConfig;
 import git.yawaflua.tech.spmega.SPMega;
 import git.yawaflua.tech.spmega.client.qr.QRCodeScanner;
+import git.yawaflua.tech.spmega.client.telemetry.*;
 import git.yawaflua.tech.spmega.client.ui.GpsHudRenderer;
 import git.yawaflua.tech.spmega.client.ui.UiNotifications;
 import git.yawaflua.tech.spmega.client.ui.UiOpeners;
@@ -100,6 +101,7 @@ public class SPMegaClient implements ClientModInitializer {
         }
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            PerformanceSampler.instance().tick();
             UiNotifications.instance().tick();
             while (openBankMenuKeyBinding.wasPressed()) {
                 UiOpeners.openMainMenu(client);
@@ -117,7 +119,10 @@ public class SPMegaClient implements ClientModInitializer {
                             current.allowBackend(),
                             current.signQuickPayEnabled(),
                             GpsHudRenderer.instance().isEnabled(),
-                            current.gpsPosition()
+                            current.gpsPosition(),
+                            current.telemetryEnabled(),
+                            current.telemetryIntervalSeconds(),
+                            current.telemetryCollectSystemInfo()
                     );
                     SPMega.setConfig(updated);
                 }
@@ -232,6 +237,27 @@ public class SPMegaClient implements ClientModInitializer {
                     System.err.println("[SPMEGA] Error during async authenticate: " + throwable.getMessage());
                     return null;
                 });
+
+        // Telemetry init
+        long clientInitStart = System.nanoTime();
+        ModConfig cfg = SPMega.getConfig();
+        int interval = (cfg != null) ? cfg.telemetryIntervalSeconds() : ModConfig.DEFAULT_TELEMETRY_INTERVAL_SECONDS;
+        SystemInfoCollector.instance().init();
+        TelemetrySender.instance().start(interval);
+        long clientInitMs = (System.nanoTime() - clientInitStart) / 1_000_000L;
+        com.google.gson.JsonObject initPayload = new com.google.gson.JsonObject();
+        initPayload.addProperty("phase", "client_init");
+        initPayload.addProperty("durationMs", clientInitMs);
+        TelemetryCollector.instance().record(TelemetryEvent.now("lifecycle", initPayload));
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            com.google.gson.JsonObject deinitPayload = new com.google.gson.JsonObject();
+            deinitPayload.addProperty("phase", "client_deinit");
+            TelemetryCollector.instance().record(TelemetryEvent.now("lifecycle", deinitPayload));
+            TelemetrySender.instance().flush();
+            TelemetrySender.instance().stop();
+        }, "SPMega-Telemetry-Shutdown"));
+
         System.out.println("Author of SPMega make it with 4 cans of monster");
         System.out.println("If u want to see more updates - give me like 10 shekels for monster plzzz");
         System.out.println("Initialized beshalom! Tieie tovim!");

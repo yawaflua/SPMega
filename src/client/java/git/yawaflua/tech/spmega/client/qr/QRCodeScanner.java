@@ -4,6 +4,8 @@ import com.google.zxing.*;
 import com.google.zxing.common.GlobalHistogramBinarizer;
 import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.multi.GenericMultipleBarcodeReader;
+import git.yawaflua.tech.spmega.client.telemetry.TelemetryCollector;
+import git.yawaflua.tech.spmega.client.telemetry.TelemetryEvent;
 import git.yawaflua.tech.spmega.client.ui.QRcodeAcceptScreen;
 import git.yawaflua.tech.spmega.client.ui.UiNotifications;
 import net.minecraft.client.MinecraftClient;
@@ -30,6 +32,7 @@ public class QRCodeScanner {
             return;
         }
 
+        long startNs = System.nanoTime();
         try {
             ScreenshotRecorder.takeScreenshot(client.getFramebuffer(), nativeImage -> {
                 try {
@@ -39,10 +42,13 @@ public class QRCodeScanner {
                                 notifications.show(Text.translatable("message.spmega.qr.capture_failed"));
                             }
                         });
+                        recordQrEvent(false, false, null, "capture_failed", startNs);
                         return;
                     }
 
                     String result = decodeQRCode(nativeImageToBufferedImage(nativeImage));
+                    long scanNs = System.nanoTime();
+                    boolean didLag = (scanNs - startNs) > 50_000_000L;
                     client.execute(() -> {
                         if (client.player == null) {
                             return;
@@ -57,6 +63,7 @@ public class QRCodeScanner {
                         client.player.sendMessage(Text.translatable("message.spmega.qr.found_link", clickableLink), false);
                         client.setScreen(new QRcodeAcceptScreen(result, client.currentScreen));
                     });
+                    recordQrEvent(result != null, didLag, result, null, startNs);
                 } finally {
                     if (nativeImage != null) {
                         nativeImage.close();
@@ -65,7 +72,22 @@ public class QRCodeScanner {
             });
         } catch (Exception ex) {
             notifications.show(Text.translatable("message.spmega.qr.error"));
+            recordQrEvent(false, false, null, ex.getClass().getSimpleName() + ": " + ex.getMessage(), startNs);
         }
+    }
+
+    private static void recordQrEvent(boolean success, boolean didLag, String decodedUrl, String error, long startNs) {
+        com.google.gson.JsonObject payload = new com.google.gson.JsonObject();
+        payload.addProperty("success", success);
+        payload.addProperty("didLag", didLag);
+        payload.addProperty("durationMs", (System.nanoTime() - startNs) / 1_000_000L);
+        if (decodedUrl != null) {
+            payload.addProperty("decodedUrl", decodedUrl);
+        }
+        if (error != null) {
+            payload.addProperty("error", error);
+        }
+        TelemetryCollector.instance().record(TelemetryEvent.now("qr_scan", payload));
     }
 
     private static BufferedImage nativeImageToBufferedImage(NativeImage screenshot) {

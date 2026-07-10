@@ -1,10 +1,10 @@
-package git.yawaflua.tech.spmega.api;
+package git.yawaflua.tech.spmega.client.api;
 
 import com.google.gson.*;
+import git.yawaflua.tech.spmega.client.telemetry.InstrumentedHttpClient;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -13,12 +13,12 @@ import java.util.Base64;
 import java.util.List;
 
 public final class SPWorldsApiClient {
-    private final HttpClient httpClient;
+    private final InstrumentedHttpClient httpClient;
     private final Gson gson;
     private final String baseUrl;
 
     public SPWorldsApiClient(String baseUrl) {
-        this.httpClient = HttpClient.newHttpClient();
+        this.httpClient = new InstrumentedHttpClient();
         this.gson = new Gson();
         this.baseUrl = normalizeBaseUrl(baseUrl);
     }
@@ -161,7 +161,7 @@ public final class SPWorldsApiClient {
     }
 
     private String send(HttpRequest request) throws IOException, InterruptedException {
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(request);
         int statusCode = response.statusCode();
         if (statusCode < 200 || statusCode >= 300) {
             System.out.println(response.body());

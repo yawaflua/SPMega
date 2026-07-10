@@ -35,6 +35,10 @@ public class ModMenuIntegration implements ModMenuApi {
             final boolean[] signQuickPayEnabled = {current.signQuickPayEnabled()};
             final GpsHudPosition[] gpsPosition = {current.gpsPosition()};
 
+            final boolean[] telemetryEnabled = {current.telemetryEnabled()};
+            final int[] telemetryIntervalSeconds = {current.telemetryIntervalSeconds()};
+            final boolean[] telemetryCollectSystemInfo = {current.telemetryCollectSystemInfo()};
+
             general.addEntry(entryBuilder.startStrField(Text.translatable("option.spmega.api_domain"), current.apiDomain())
                     .setDefaultValue(ModConfig.DEFAULT_API_DOMAIN)
                     .setSaveConsumer(newValue -> apiDomain[0] = newValue)
@@ -80,6 +84,29 @@ public class ModMenuIntegration implements ModMenuApi {
                     .setSaveConsumer(newValue -> gpsPosition[0] = newValue)
                     .build());
 
+            // Telemetry settings
+            ConfigCategory telemetry = builder.getOrCreateCategory(Text.translatable("category.spmega.telemetry"));
+
+            telemetry.addEntry(entryBuilder.startBooleanToggle(Text.translatable("option.spmega.telemetry_enabled"), current.telemetryEnabled())
+                    .setDefaultValue(ModConfig.DEFAULT_TELEMETRY_ENABLED)
+                    .setTooltip(Text.translatable("tooltip.spmega.telemetry_enabled"))
+                    .setSaveConsumer(newValue -> telemetryEnabled[0] = newValue)
+                    .build());
+
+            telemetry.addEntry(entryBuilder.startIntField(Text.translatable("option.spmega.telemetry_interval"), current.telemetryIntervalSeconds())
+                    .setDefaultValue(ModConfig.DEFAULT_TELEMETRY_INTERVAL_SECONDS)
+                    .setMin(10)
+                    .setMax(600)
+                    .setTooltip(Text.translatable("tooltip.spmega.telemetry_interval"))
+                    .setSaveConsumer(newValue -> telemetryIntervalSeconds[0] = newValue)
+                    .build());
+
+            telemetry.addEntry(entryBuilder.startBooleanToggle(Text.translatable("option.spmega.telemetry_system_info"), current.telemetryCollectSystemInfo())
+                    .setDefaultValue(ModConfig.DEFAULT_TELEMETRY_COLLECT_SYSTEM_INFO)
+                    .setTooltip(Text.translatable("tooltip.spmega.telemetry_system_info"))
+                    .setSaveConsumer(newValue -> telemetryCollectSystemInfo[0] = newValue)
+                    .build());
+
             builder.setSavingRunnable(() -> {
                 boolean gpsEnabledVal = true;
                 if (SPMega.getConfig() != null) {
@@ -91,7 +118,10 @@ public class ModMenuIntegration implements ModMenuApi {
                         allowBackend[0],
                         signQuickPayEnabled[0],
                         gpsEnabledVal,
-                        gpsPosition[0]
+                        gpsPosition[0],
+                        telemetryEnabled[0],
+                        telemetryIntervalSeconds[0],
+                        telemetryCollectSystemInfo[0]
                 );
                 SPMega.setConfig(updated);
             });

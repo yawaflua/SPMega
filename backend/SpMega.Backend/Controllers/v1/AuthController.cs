@@ -20,6 +20,7 @@ namespace SpMega.Backend.Controllers.v1;
 
 public record GetSessionIdBody(string userName, Guid userUUID);
 public record ValidateSessionBody(string sessionId, Guid userUUID);
+
 [Route("api/v1/auth")]
 [ApiController]
 public class AuthController(AppDbContext dbContext, TokenService tokenService, ILogger<AuthController> logger) : ControllerBase
@@ -67,7 +68,7 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
 
             var resp = await httpClient.SendAsync(request);
             if (resp.StatusCode != HttpStatusCode.OK) throw new Exception("Mojang response is not OK");
-            Console.WriteLine(await resp.Content.ReadAsStringAsync());
+            
             var dto = await resp.Content.ReadFromJsonAsync<MojangDto>();
             if (dto == null || dto.Name != session.UserName || Guid.Parse(dto.Id) != session.UserId) throw new Exception("Session expired, or dto is not acceptable.");
             var token = tokenService.GenerateAccessToken(session.UserName, body.userUUID);
@@ -75,6 +76,9 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
             if (user != null)
             {
                 user.Token = token;
+                user.Username = session.UserName;
+                user.UpdatedAt = DateTime.UtcNow;
+                
                 dbContext.Update(user);
             }
             else
@@ -84,6 +88,7 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
                     Id = body.userUUID,
                     Username = session.UserName,
                     Token = token,
+                    UpdatedAt = DateTime.UtcNow
                 };
                 await dbContext.AddAsync(user);
             }

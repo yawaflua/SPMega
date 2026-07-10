@@ -3,7 +3,10 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using SpMega.Backend.Authetication;
+using SpMega.Backend.Middleware;
 using SpMega.Backend.Persistent.Database;
 using SpMega.Backend.Services;
 
@@ -56,18 +59,33 @@ public class Program
                 .RequireAuthenticatedUser()
                 .Build());
         
-        var serviceCollection = new ServiceCollection();
         var mongoClient =
             new MongoClient(builder.Configuration.GetValue<string>("Mongo") ?? "mongodb://curiosity:27018");
-        serviceCollection.AddSingleton<IMongoClient>(mongoClient);
-        
+        builder.Services.AddSingleton<IMongoClient>(mongoClient);
+
         builder.Services.AddDbContext<AppDbContext>((_, options) =>
         {
             options.UseMongoDB(mongoClient, "spmega");
         });
+
+        var otlpEndpoint = conf["Otlp:Endpoint"] ?? "http://localhost:4317";
+        builder.Services.AddOpenTelemetry()
+            .ConfigureResource(res => res.AddService("SpMega.Backend"))
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .AddSource("SpMega.ModTelemetry")
+                    .AddSource("SpMega.RequestTelemetry")
+                    .AddAspNetCoreInstrumentation()
+                    .AddOtlpExporter(opts =>
+                    {
+                        opts.Endpoint = new Uri(otlpEndpoint);
+                    });
+            });
     
         var app = builder.Build();
 
+        app.UseMiddleware<RequestTelemetryMiddleware>();
         app.UseAuthentication();
         app.UseAuthorization();
         app.UseWhen(ctx => ctx.Request.Path.StartsWithSegments("/api"), appBuilder =>

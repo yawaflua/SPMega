@@ -2,7 +2,9 @@ package git.yawaflua.tech.spmega.client.ui.service;
 
 import git.yawaflua.tech.spmega.ModConfig;
 import git.yawaflua.tech.spmega.SPMega;
-import git.yawaflua.tech.spmega.api.SPWorldsApiClient;
+import git.yawaflua.tech.spmega.client.api.SPWorldsApiClient;
+import git.yawaflua.tech.spmega.client.telemetry.TelemetryCollector;
+import git.yawaflua.tech.spmega.client.telemetry.TelemetryEvent;
 import net.fabricmc.loader.api.FabricLoader;
 
 import net.minecraft.client.MinecraftClient;
@@ -248,12 +250,17 @@ public final class BankUiService {
             CardCredentials credentials = database.getCredentials(draft.senderCardId());
             if (credentials == null) {
                 lastMessage = "Не найдены креды карты отправителя";
+                recordPaymentEvent(draft, false, "local", "no_credentials", 0, null);
                 return false;
             }
 
             git.yawaflua.tech.spmega.ModConfig config = git.yawaflua.tech.spmega.SPMega.getConfig();
             boolean useBackend = config != null && config.allowBackend();
+            String mode = useBackend ? "backend" : "spworlds-direct";
+            String destination = useBackend ? "backend" : "local-db";
+            String senderLast4 = extractLastDigits(credentials.cardId());
 
+            long startNs = System.nanoTime();
             try {
                 long newBalance = 0;
                 if (useBackend) {
@@ -297,6 +304,8 @@ public final class BankUiService {
 
                 reloadCardsFromDb();
                 lastMessage = "Перевод выполнен";
+                long durationMs = (System.nanoTime() - startNs) / 1_000_000L;
+                recordPaymentEvent(draft, true, mode, destination, durationMs, senderLast4);
                 return true;
             } catch (Exception exception) {
                 database.insertTransferHistory(
@@ -308,9 +317,30 @@ public final class BankUiService {
                         "FAILED: " + trimMessage(exception.getMessage())
                 );
                 lastMessage = "Ошибка перевода: " + exception.getMessage();
+                long durationMs = (System.nanoTime() - startNs) / 1_000_000L;
+                recordPaymentEvent(draft, false, mode, destination, durationMs, senderLast4, exception.getMessage());
                 return false;
             }
         });
+    }
+
+    private void recordPaymentEvent(PaymentDraft draft, boolean success, String mode, String destination, long durationMs, String senderLast4) {
+        recordPaymentEvent(draft, success, mode, destination, durationMs, senderLast4, null);
+    }
+
+    private void recordPaymentEvent(PaymentDraft draft, boolean success, String mode, String destination, long durationMs, String senderLast4, String error) {
+        com.google.gson.JsonObject payload = new com.google.gson.JsonObject();
+        payload.addProperty("success", success);
+        payload.addProperty("mode", mode);
+        payload.addProperty("destination", destination);
+        payload.addProperty("durationMs", durationMs);
+        payload.addProperty("senderCardLast4", senderLast4 != null ? senderLast4 : "unknown");
+        payload.addProperty("amount", draft.amount());
+        payload.addProperty("receiver", draft.recipient());
+        if (error != null) {
+            payload.addProperty("error", trimMessage(error));
+        }
+        TelemetryCollector.instance().record(TelemetryEvent.now("payment", payload));
     }
 
     private boolean refreshCardSync(
