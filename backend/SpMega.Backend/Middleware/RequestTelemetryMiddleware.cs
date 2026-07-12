@@ -28,7 +28,7 @@ public class RequestTelemetryMiddleware(RequestDelegate next, ILogger<RequestTel
         activity?.SetTag("http.host", context.Request.Host.Value ?? string.Empty);
         activity?.SetTag("client.ip", context.Connection.RemoteIpAddress?.ToString());
         activity?.SetTag("http.user_agent", context.Request.Headers.UserAgent.ToString());
-        activity?.SetTag("http.headers", context.Request.Headers.ToString());
+        activity?.SetTag("http.headers", string.Join(", ", context.Request.Headers.Select(h => $"{h.Key}: {h.Value}")));
 
         var stopwatch = Stopwatch.StartNew();
         try
