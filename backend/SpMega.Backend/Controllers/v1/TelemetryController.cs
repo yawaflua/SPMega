@@ -9,6 +9,7 @@ namespace SpMega.Backend.Controllers.v1;
 
 [ApiController]
 [Route("api/v1/telemetry")]
+[Authorize]
 public class TelemetryController : ControllerBase
 {
     private static readonly ActivitySource Source = new("SpMega.ModTelemetry");

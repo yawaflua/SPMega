@@ -12,7 +12,7 @@ public class Card
     public string ShortId { get; set; } = "";
     public bool WebhookConnected { get; set; } = false;
 
-    public int Balance { get; set; } = 0;
+    public int? Balance { get; set; } = -1;
     
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; }
