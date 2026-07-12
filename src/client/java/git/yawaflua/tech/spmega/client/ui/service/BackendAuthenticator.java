@@ -141,7 +141,7 @@ public final class BackendAuthenticator {
             String token = json.get("token").getAsString();
             SPMega.setConfig(new ModConfig(
                     config.apiDomain(), token, config.allowBackend(), config.signQuickPayEnabled(),
-                    config.gpsEnabled(), config.gpsPosition(), config.notificationPosition(), config.telemetryEnabled(),
+                    config.gpsEnabled(), config.gpsPosition(), config.notificationPosition(),
                     config.telemetryIntervalSeconds(), config.telemetryCollectSystemInfo()));
             System.out.println("[SPMEGA] Backend auth successful, saved token.");
             return true;

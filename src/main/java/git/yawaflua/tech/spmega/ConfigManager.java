@@ -74,12 +74,6 @@ public final class ConfigManager {
             shouldSave = true;
         }
 
-        boolean telemetryEnabled = readBoolean(properties, "telemetry.enabled", defaults.telemetryEnabled());
-        String rawTelemetry = properties.getProperty("telemetry.enabled");
-        if (rawTelemetry == null || !Boolean.toString(telemetryEnabled).equalsIgnoreCase(rawTelemetry.trim())) {
-            shouldSave = true;
-        }
-
         int telemetryIntervalSeconds = readInt(properties, "telemetry.intervalSeconds", defaults.telemetryIntervalSeconds());
         String rawInterval = properties.getProperty("telemetry.intervalSeconds");
         if (rawInterval == null || !Integer.toString(telemetryIntervalSeconds).equals(rawInterval.trim())) {
@@ -93,8 +87,7 @@ public final class ConfigManager {
         }
 
         ModConfig config = new ModConfig(apiDomain, apiToken, allowAccess, signQuickPayEnabled, gpsEnabled, gpsPosition,
-                notificationPosition,
-                telemetryEnabled, telemetryIntervalSeconds, telemetryCollectSystemInfo);
+                notificationPosition, telemetryIntervalSeconds, telemetryCollectSystemInfo);
 
 
         if (shouldSave) {
@@ -159,7 +152,6 @@ public final class ConfigManager {
         properties.setProperty("gps.enabled", Boolean.toString(config.gpsEnabled()));
         properties.setProperty("gps.position", config.gpsPosition().name());
         properties.setProperty("notifications.position", config.notificationPosition().name());
-        properties.setProperty("telemetry.enabled", Boolean.toString(config.telemetryEnabled()));
         properties.setProperty("telemetry.intervalSeconds", Integer.toString(config.telemetryIntervalSeconds()));
         properties.setProperty("telemetry.collectSystemInfo", Boolean.toString(config.telemetryCollectSystemInfo()));
 

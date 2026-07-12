@@ -2,8 +2,8 @@ package git.yawaflua.tech.spmega;
 
 public record ModConfig(String apiDomain, String apiToken, boolean allowBackend, boolean signQuickPayEnabled,
                         boolean gpsEnabled, GpsHudPosition gpsPosition,
-                        GpsHudPosition notificationPosition,
-                        boolean telemetryEnabled, int telemetryIntervalSeconds, boolean telemetryCollectSystemInfo) {
+                        GpsHudPosition notificationPosition, int telemetryIntervalSeconds,
+                        boolean telemetryCollectSystemInfo) {
     public static final String DEFAULT_API_DOMAIN = "https://spmega.yawaflua.tech";
     public static final boolean ALLOW_BACKEND = true;
     public static final String DEFAULT_API_TOKEN = "-";
@@ -24,7 +24,6 @@ public record ModConfig(String apiDomain, String apiToken, boolean allowBackend,
                 DEFAULT_GPS_ENABLED,
                 DEFAULT_GPS_POSITION,
                 DEFAULT_NOTIFICATION_POSITION,
-                DEFAULT_TELEMETRY_ENABLED,
                 DEFAULT_TELEMETRY_INTERVAL_SECONDS,
                 DEFAULT_TELEMETRY_COLLECT_SYSTEM_INFO
         );

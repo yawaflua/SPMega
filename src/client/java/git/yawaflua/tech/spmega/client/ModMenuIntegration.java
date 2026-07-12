@@ -36,7 +36,6 @@ public class ModMenuIntegration implements ModMenuApi {
             final GpsHudPosition[] gpsPosition = {current.gpsPosition()};
             final GpsHudPosition[] notificationPosition = {current.notificationPosition()};
 
-            final boolean[] telemetryEnabled = {current.telemetryEnabled()};
             final int[] telemetryIntervalSeconds = {current.telemetryIntervalSeconds()};
             final boolean[] telemetryCollectSystemInfo = {current.telemetryCollectSystemInfo()};
 
@@ -101,12 +100,6 @@ public class ModMenuIntegration implements ModMenuApi {
             // Telemetry settings
             ConfigCategory telemetry = builder.getOrCreateCategory(Text.translatable("category.spmega.telemetry"));
 
-            telemetry.addEntry(entryBuilder.startBooleanToggle(Text.translatable("option.spmega.telemetry_enabled"), current.telemetryEnabled())
-                    .setDefaultValue(ModConfig.DEFAULT_TELEMETRY_ENABLED)
-                    .setTooltip(Text.translatable("tooltip.spmega.telemetry_enabled"))
-                    .setSaveConsumer(newValue -> telemetryEnabled[0] = newValue)
-                    .build());
-
             telemetry.addEntry(entryBuilder.startIntField(Text.translatable("option.spmega.telemetry_interval"), current.telemetryIntervalSeconds())
                     .setDefaultValue(ModConfig.DEFAULT_TELEMETRY_INTERVAL_SECONDS)
                     .setMin(10)
@@ -134,7 +127,6 @@ public class ModMenuIntegration implements ModMenuApi {
                         gpsEnabledVal,
                         gpsPosition[0],
                         notificationPosition[0],
-                        telemetryEnabled[0],
                         telemetryIntervalSeconds[0],
                         telemetryCollectSystemInfo[0]
                 );

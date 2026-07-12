@@ -120,7 +120,6 @@ public class SPMegaClient implements ClientModInitializer {
                             GpsHudRenderer.instance().isEnabled(),
                             current.gpsPosition(),
                             current.notificationPosition(),
-                            current.telemetryEnabled(),
                             current.telemetryIntervalSeconds(),
                             current.telemetryCollectSystemInfo()
                     );

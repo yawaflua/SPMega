@@ -70,7 +70,7 @@ public class WebhookController( AppDbContext dbContext, ILogger<WebhookControlle
         var user = await dbContext.Users.FirstOrDefaultAsync(k => k.ShortId == userShortId);
         if (user == null)
             return BadRequest("User not found");
-        var cardToUse = user.Cards.FirstOrDefault(c => c.ShortId == cardShortId && c.Id == cardId && c.WebhookConnected);
+        var cardToUse = user.Cards.FirstOrDefault(c => c.ShortId == cardShortId && c.Id == cardId && c.WebhookConnected == true);
         if (cardToUse == null)
             return BadRequest("Card not found");
         
