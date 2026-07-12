@@ -93,7 +93,7 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
          SenderCardNumber = cardToUse.SpworldsID,
          SenderMinecraftName = user.Username,
          Amount = body.amount,
-         Comment = body.comment,
+         Comment = body.comment
       };
       try
       {

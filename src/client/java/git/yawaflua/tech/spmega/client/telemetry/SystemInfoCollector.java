@@ -3,6 +3,8 @@ package git.yawaflua.tech.spmega.client.telemetry;
 import com.google.gson.JsonObject;
 import net.minecraft.client.MinecraftClient;
 import org.lwjgl.opengl.GL11;
+import oshi.SystemInfo;
+import oshi.hardware.CentralProcessor;
 
 import java.net.InetAddress;
 import java.net.URI;
@@ -12,12 +14,14 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class SystemInfoCollector {
     private static final SystemInfoCollector INSTANCE = new SystemInfoCollector();
     private static final long MB = 1024L * 1024L;
 
+    private final CentralProcessor cpu = new SystemInfo().getHardware().getProcessor();
     private final AtomicReference<String> cachedIp = new AtomicReference<>("<unknown>");
     private final AtomicReference<String> gpuRenderer = new AtomicReference<>("<pending>");
     private final AtomicReference<String> gpuVendor = new AtomicReference<>("<pending>");
@@ -69,6 +73,9 @@ public final class SystemInfoCollector {
 
         Runtime rt = Runtime.getRuntime();
         info.addProperty("cpuCores", rt.availableProcessors());
+        info.addProperty("cpuName", cpu.getProcessorIdentifier().getName());
+        info.addProperty("cpuCurrentFrequencyHz", Arrays.stream(cpu.getCurrentFreq()).max().orElse(0));
+        info.addProperty("cpuMaxFrequencyHz", cpu.getMaxFreq());
 
         try {
             var osBean = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
