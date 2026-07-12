@@ -70,8 +70,8 @@ public class Program
             options.UseMongoDB(mongoClient, "spmega");
         });
 
-        var otlpEndpoint = (conf["Otlp__Endpoint"] ?? "http://curiosity:5080/api/default").TrimEnd('/');
-        var otlpHeaders = conf["Otlp__Headers"] ?? throw new InvalidOperationException("Otlp__Headers is not configured.");
+        var otlpEndpoint = (conf["Otlp:Endpoint"] ?? conf["Otlp__Endpoint"] ?? "http://curiosity:5080/api/default").TrimEnd('/');
+        var otlpHeaders = conf["Otlp:Headers"] ?? conf["Otlp__Headers"] ?? throw new InvalidOperationException("Otlp__Headers is not configured.");
         var tracesEndpoint = new Uri($"{otlpEndpoint}/v1/traces");
         var metricsEndpoint = new Uri($"{otlpEndpoint}/v1/metrics");
         builder.Services.AddOpenTelemetry()
