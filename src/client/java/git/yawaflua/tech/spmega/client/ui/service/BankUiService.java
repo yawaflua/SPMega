@@ -107,47 +107,37 @@ public final class BankUiService {
         return lastMessage;
     }
 
+    private static String rootMessage(Throwable throwable) {
+        Throwable cause = throwable;
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        return cause.getMessage();
+    }
+
     public CompletableFuture<Void> syncCardsWithBackendAsync(String playerUuid) {
-        return CompletableFuture.runAsync(() -> {
-            try {
-                List<CardCredentials> backendCards = BackendAuthenticator.fetchCardsFromBackend();
-                boolean changed = false;
-                for (CardCredentials creds : backendCards) {
-                    if (database.getCredentials(creds.cardId()) == null) {
-                        database.upsertCardCredentials(creds.cardId(), creds.cardToken());
-                        refreshCardSync(creds.cardId(), creds.cardToken(), playerUuid, false, false);
-                        changed = true;
+        return BackendAuthenticator.fetchCardsFromBackendAsync()
+                .thenCompose(cards -> syncMissingCardsAsync(cards, playerUuid))
+                .thenAccept(changed -> {
+                    if (changed) {
+                        reloadCardsFromDb();
                     }
-                }
-                if (changed) {
-                    reloadCardsFromDb();
-                }
-            } catch (Exception e) {
-                System.err.println("[SPMEGA] Failed to sync cards with backend: " + e.getMessage());
-            }
-        });
+                })
+                .exceptionally(exception -> {
+                    System.err.println("[SPMEGA] Failed to sync cards with backend: " + exception.getMessage());
+                    return null;
+                });
     }
 
     public CompletableFuture<Void> refreshOnServerJoinAsync(String playerUuid) {
-        return CompletableFuture.runAsync(() -> {
-            try {
-                List<CardCredentials> backendCards = BackendAuthenticator.fetchCardsFromBackend();
-                for (CardCredentials creds : backendCards) {
-                    if (database.getCredentials(creds.cardId()) == null) {
-                        database.upsertCardCredentials(creds.cardId(), creds.cardToken());
-                        refreshCardSync(creds.cardId(), creds.cardToken(), playerUuid, false, false);
-                    }
-                }
-            } catch (Exception e) {
-                System.err.println("[SPMEGA] Failed to sync cards with backend: " + e.getMessage());
-            }
-
-            List<StoredCard> storedCards = database.loadCards();
-            for (StoredCard card : storedCards) {
-                refreshCardSync(card.cardId(), card.cardToken(), playerUuid, false, false);
-            }
-            reloadCardsFromDb();
-        });
+        return BackendAuthenticator.fetchCardsFromBackendAsync()
+                .exceptionally(exception -> {
+                    System.err.println("[SPMEGA] Failed to sync cards with backend: " + exception.getMessage());
+                    return List.of();
+                })
+                .thenCompose(cards -> syncMissingCardsAsync(cards, playerUuid))
+                .thenCompose(ignored -> refreshStoredCardsAsync(playerUuid))
+                .thenRun(this::reloadCardsFromDb);
     }
 
     public CompletableFuture<List<String>> loadRecipientCardsAsync(String username) {
@@ -156,9 +146,8 @@ public final class BankUiService {
             return CompletableFuture.completedFuture(List.of());
         }
 
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                List<SPWorldsApiClient.PlayerCard> apiCards = apiClient.getPlayerCards(username, toApiAuth(credentials));
+        return apiClient.getPlayerCardsAsync(username, toApiAuth(credentials))
+                .thenApply(apiCards -> {
                 List<String> numbers = new ArrayList<>();
                 for (SPWorldsApiClient.PlayerCard apiCard : apiCards) {
                     if (apiCard.number() != null && !apiCard.number().isBlank()) {
@@ -167,40 +156,11 @@ public final class BankUiService {
                 }
                 lastMessage = "";
                 return numbers;
-            } catch (Exception exception) {
+                })
+                .exceptionally(exception -> {
                 lastMessage = "Не удалось получить карты игрока: " + exception.getMessage();
                 return List.of();
-            }
-        });
-    }
-
-    public CompletableFuture<String> addCardAsync(String cardIdRaw, String cardTokenRaw, String playerUuid) {
-        String cardId = cardIdRaw == null ? "" : cardIdRaw.trim();
-        String cardToken = cardTokenRaw == null ? "" : cardTokenRaw.trim();
-
-        if (cardId.isEmpty() || cardToken.isEmpty()) {
-            return CompletableFuture.completedFuture("Укажи cardId и cardToken");
-        }
-
-        try {
-            UUID.fromString(cardId);
-        } catch (IllegalArgumentException exception) {
-            return CompletableFuture.completedFuture("cardId должен быть UUID");
-        }
-
-        return CompletableFuture.supplyAsync(() -> {
-            database.upsertCardCredentials(cardId, cardToken);
-            boolean refreshed = refreshCardSync(cardId, cardToken, playerUuid, true, true);
-            if (!refreshed) {
-                database.deleteCard(cardId);
-            }
-            reloadCardsFromDb();
-
-            if (refreshed && lastMessage.isBlank()) {
-                return "Карта добавлена";
-            }
-            return lastMessage;
-        });
+                });
     }
 
     public CompletableFuture<String> removeSelectedCardAsync() {
@@ -227,101 +187,48 @@ public final class BankUiService {
         });
     }
 
+    public CompletableFuture<String> addCardAsync(String cardIdRaw, String cardTokenRaw, String playerUuid) {
+        String cardId = cardIdRaw == null ? "" : cardIdRaw.trim();
+        String cardToken = cardTokenRaw == null ? "" : cardTokenRaw.trim();
+
+        if (cardId.isEmpty() || cardToken.isEmpty()) {
+            return CompletableFuture.completedFuture("Укажи cardId и cardToken");
+        }
+
+        try {
+            UUID.fromString(cardId);
+        } catch (IllegalArgumentException exception) {
+            return CompletableFuture.completedFuture("cardId должен быть UUID");
+        }
+
+        return CompletableFuture.runAsync(() -> database.upsertCardCredentials(cardId, cardToken))
+                .thenCompose(ignored -> refreshCardAsync(cardId, cardToken, playerUuid, true, true))
+                .thenApply(refreshed -> {
+                    if (!refreshed) {
+                        database.deleteCard(cardId);
+                    }
+                    reloadCardsFromDb();
+                    return refreshed && lastMessage.isBlank() ? "Карта добавлена" : lastMessage;
+                });
+    }
+
     public CompletableFuture<String> refreshSelectedCardAsync(String playerUuid) {
         CardViewModel selected = getSelectedCard();
         if (selected == null) {
             return CompletableFuture.completedFuture("Нет карты для обновления");
         }
 
-        return CompletableFuture.supplyAsync(() -> {
-            CardCredentials credentials = database.getCredentials(selected.id());
+        return CompletableFuture.supplyAsync(() -> database.getCredentials(selected.id()))
+                .thenCompose(credentials -> {
             if (credentials == null) {
-                return "Не найдены креды карты";
+                return CompletableFuture.completedFuture("Не найдены креды карты");
             }
-
-            refreshCardSync(credentials.cardId(), credentials.cardToken(), playerUuid, false, false);
-            reloadCardsFromDb();
-            return lastMessage.isBlank() ? "Карта обновлена" : lastMessage;
-        });
-    }
-
-    public CompletableFuture<Boolean> submitPaymentAsync(PaymentDraft draft) {
-        return CompletableFuture.supplyAsync(() -> {
-            CardCredentials credentials = database.getCredentials(draft.senderCardId());
-            if (credentials == null) {
-                lastMessage = "Не найдены креды карты отправителя";
-                recordPaymentEvent(draft, false, "local", "no_credentials", 0, null);
-                return false;
-            }
-
-            git.yawaflua.tech.spmega.ModConfig config = git.yawaflua.tech.spmega.SPMega.getConfig();
-            boolean useBackend = config != null && config.allowBackend();
-            String mode = useBackend ? "backend" : "spworlds-direct";
-            String destination = useBackend ? "backend" : "local-db";
-            String senderLast4 = extractLastDigits(credentials.cardId());
-
-            long startNs = System.nanoTime();
-            try {
-                long newBalance = 0;
-                if (useBackend) {
-                    BackendAuthenticator.createTransactionOnBackend(
-                            draft.senderCardId(),
-                            draft.recipient(),
-                            draft.amount(),
-                            draft.comment()
-                    );
-                    try {
-                        refreshCardSync(credentials.cardId(), credentials.cardToken(), "", false, false);
-                        StoredCard updatedCard = database.loadCards().stream()
-                                .filter(c -> c.cardId().equals(credentials.cardId()))
-                                .findFirst()
-                                .orElse(null);
-                        if (updatedCard != null) {
-                            newBalance = updatedCard.balance();
-                        }
-                    } catch (Exception e) {
-                        System.err.println("[SPMEGA] Failed to refresh card balance after transaction: " + e.getMessage());
-                    }
-                } else {
-                    SPWorldsApiClient.TransactionResult result = apiClient.createTransaction(
-                            toApiAuth(credentials),
-                            draft.recipient(),
-                            draft.amount(),
-                            draft.comment()
-                    );
-                    newBalance = result.balance();
-                    database.updateCardBalance(credentials.cardId(), newBalance);
-                }
-
-                database.insertTransferHistory(
-                        credentials.cardId(),
-                        draft.recipient(),
-                        draft.amount(),
-                        draft.comment(),
-                        newBalance,
-                        "SUCCESS"
-                );
-
-                reloadCardsFromDb();
-                lastMessage = "Перевод выполнен";
-                long durationMs = (System.nanoTime() - startNs) / 1_000_000L;
-                recordPaymentEvent(draft, true, mode, destination, durationMs, senderLast4);
-                return true;
-            } catch (Exception exception) {
-                database.insertTransferHistory(
-                        credentials.cardId(),
-                        draft.recipient(),
-                        draft.amount(),
-                        draft.comment(),
-                        null,
-                        "FAILED: " + trimMessage(exception.getMessage())
-                );
-                lastMessage = "Ошибка перевода: " + exception.getMessage();
-                long durationMs = (System.nanoTime() - startNs) / 1_000_000L;
-                recordPaymentEvent(draft, false, mode, destination, durationMs, senderLast4, exception.getMessage());
-                return false;
-            }
-        });
+                    return refreshCardAsync(credentials.cardId(), credentials.cardToken(), playerUuid, false, false)
+                            .thenApply(ignored -> {
+                                reloadCardsFromDb();
+                                return lastMessage.isBlank() ? "Карта обновлена" : lastMessage;
+                            });
+                });
     }
 
     private void recordPaymentEvent(PaymentDraft draft, boolean success, String mode, String destination, long durationMs, String senderLast4) {
@@ -343,17 +250,73 @@ public final class BankUiService {
         TelemetryCollector.instance().record(TelemetryEvent.now("payment", payload));
     }
 
-    private boolean refreshCardSync(
+    public CompletableFuture<Boolean> submitPaymentAsync(PaymentDraft draft) {
+        return CompletableFuture.supplyAsync(() -> database.getCredentials(draft.senderCardId()))
+                .thenCompose(credentials -> {
+            if (credentials == null) {
+                lastMessage = "Не найдены креды карты отправителя";
+                recordPaymentEvent(draft, false, "local", "no_credentials", 0, null);
+                return CompletableFuture.completedFuture(false);
+            }
+
+                    ModConfig config = SPMega.getConfig();
+            boolean useBackend = config != null && config.allowBackend();
+            String mode = useBackend ? "backend" : "spworlds-direct";
+            String destination = useBackend ? "backend" : "local-db";
+            String senderLast4 = extractLastDigits(credentials.cardId());
+            long startNs = System.nanoTime();
+
+                    CompletableFuture<Long> transaction = useBackend
+                            ? BackendAuthenticator.createTransactionOnBackendAsync(
+                            draft.senderCardId(), draft.recipient(), draft.amount(), draft.comment())
+                              .thenCompose(ignored -> refreshCardAsync(
+                                      credentials.cardId(), credentials.cardToken(), "", false, false))
+                              .thenApply(ignored -> database.loadCards().stream()
+                                                    .filter(card -> card.cardId().equals(credentials.cardId()))
+                                                    .findFirst()
+                                                    .map(StoredCard::balance)
+                                                    .orElse(0L))
+                            : apiClient.createTransactionAsync(
+                            toApiAuth(credentials), draft.recipient(), draft.amount(), draft.comment())
+                              .thenApply(result -> {
+                                  database.updateCardBalance(credentials.cardId(), result.balance());
+                                  return result.balance();
+                              });
+
+                    return transaction
+                            .thenApply(newBalance -> {
+                                database.insertTransferHistory(
+                                        credentials.cardId(), draft.recipient(), draft.amount(), draft.comment(),
+                                        newBalance, "SUCCESS");
+                                reloadCardsFromDb();
+                                lastMessage = "Перевод выполнен";
+                                recordPaymentEvent(draft, true, mode, destination,
+                                        (System.nanoTime() - startNs) / 1_000_000L, senderLast4);
+                                return true;
+                            })
+                            .exceptionally(exception -> {
+                                String error = rootMessage(exception);
+                                database.insertTransferHistory(
+                                        credentials.cardId(), draft.recipient(), draft.amount(), draft.comment(),
+                                        null, "FAILED: " + trimMessage(error));
+                                lastMessage = "Ошибка перевода: " + error;
+                                recordPaymentEvent(draft, false, mode, destination,
+                                        (System.nanoTime() - startNs) / 1_000_000L, senderLast4, error);
+                                return false;
+                            });
+                });
+    }
+
+    private CompletableFuture<Boolean> refreshCardAsync(
             String cardId,
             String cardToken,
             String playerUuid,
             boolean reportOwnerWarning,
             boolean requireCardInAccount
     ) {
-        try {
-            SPWorldsApiClient.CardAuth auth = new SPWorldsApiClient.CardAuth(cardId, cardToken);
-            SPWorldsApiClient.AccountMe me = apiClient.getAccountMe(auth);
-            SPWorldsApiClient.CardInfo cardInfo = apiClient.getCardInfo(auth);
+        SPWorldsApiClient.CardAuth auth = new SPWorldsApiClient.CardAuth(cardId, cardToken);
+        return apiClient.getAccountMeAsync(auth)
+                .thenCompose(me -> apiClient.getCardInfoAsync(auth).thenApply(cardInfo -> {
 
             SPWorldsApiClient.AccountCard currentCard = me.cards().stream()
                     .filter(card -> Objects.equals(card.id(), cardId))
@@ -378,17 +341,67 @@ public final class BankUiService {
                     return true;
                 }
             }
-            git.yawaflua.tech.spmega.ModConfig config = git.yawaflua.tech.spmega.SPMega.getConfig();
+                    ModConfig config = SPMega.getConfig();
             if (config != null && config.allowBackend()) {
                 BackendAuthenticator.sendCardToBackend(cardId, cardToken);
             }
 
             lastMessage = "";
             return true;
-        } catch (Exception exception) {
-            lastMessage = "Не удалось обновить карту: " + exception.getMessage();
-            return false;
+                }))
+                .exceptionally(exception -> {
+                    lastMessage = "Не удалось обновить карту: " + rootMessage(exception);
+                    return false;
+                });
+    }
+
+    public CompletableFuture<String> registerSelectedWebhookAsync() {
+        CardViewModel selected = getSelectedCard();
+        if (selected == null) {
+            return CompletableFuture.completedFuture("Сначала выбери или добавь карту");
         }
+        if (selected.webhookEnabled()) {
+            return CompletableFuture.completedFuture("Вебхук для этой карты уже включён");
+        }
+
+        return BackendAuthenticator.registerWebhookForCardAsync(selected.id())
+                .thenApply(ignored -> {
+                    database.setWebhookEnabled(selected.id(), true);
+                    reloadCardsFromDb();
+                    return "Обработка вебхуков включена";
+                })
+                .exceptionally(exception -> "Не удалось включить вебхук: " + rootMessage(exception));
+    }
+
+    public boolean hasWebhookEnabledCards() {
+        return database.hasWebhookEnabledCards();
+    }
+
+    private CompletableFuture<Boolean> syncMissingCardsAsync(List<CardCredentials> backendCards, String playerUuid) {
+        CompletableFuture<Boolean> result = CompletableFuture.completedFuture(false);
+        for (CardCredentials credentials : backendCards) {
+            result = result.thenCompose(changed -> {
+                if (database.getCredentials(credentials.cardId()) != null) {
+                    database.setWebhookEnabled(credentials.cardId(), credentials.webhookEnabled());
+                    return CompletableFuture.completedFuture(changed);
+                }
+                database.upsertCardCredentials(credentials.cardId(), credentials.cardToken());
+                database.setWebhookEnabled(credentials.cardId(), credentials.webhookEnabled());
+                return refreshCardAsync(
+                        credentials.cardId(), credentials.cardToken(), playerUuid, false, false)
+                        .thenApply(ignored -> true);
+            });
+        }
+        return result;
+    }
+
+    private CompletableFuture<Void> refreshStoredCardsAsync(String playerUuid) {
+        CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
+        for (StoredCard card : database.loadCards()) {
+            result = result.thenCompose(ignored -> refreshCardAsync(
+                    card.cardId(), card.cardToken(), playerUuid, false, false).thenApply(refreshed -> null));
+        }
+        return result;
     }
 
     private void reloadCardsFromDb() {
@@ -401,7 +414,8 @@ public final class BankUiService {
                         : stored.cardNumber();
                 String cardName = stored.cardName() == null || stored.cardName().isBlank() ? "Карта" : stored.cardName();
                 String title = cardNumber + ": " + cardName;
-                cards.add(new CardViewModel(stored.cardId(), title, stored.balance()));
+                cards.add(new CardViewModel(
+                        stored.cardId(), title, stored.balance(), stored.webhookEnabled()));
             }
 
             if (cards.isEmpty()) {

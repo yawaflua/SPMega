@@ -107,50 +107,47 @@ public class TransactionHistoryScreen extends Screen {
 
         UiNotifications.instance().show(Text.literal("Загрузка..."));
 
-        CompletableFuture.runAsync(() -> {
-            try {
-                System.out.println("[SPMEGA] Transaction history loading started for card: " + cardId + ", page: " + currentPage);
-                List<LocalTransaction> list = null;
-                git.yawaflua.tech.spmega.ModConfig config = git.yawaflua.tech.spmega.SPMega.getConfig();
-                if (config != null && config.allowBackend()) {
-                    try {
-                        list = BackendAuthenticator.fetchTransactionsFromBackend(cardId, currentPage);
-                        System.out.println("[SPMEGA] Fetched " + (list != null ? list.size() : "null") + " transactions from backend.");
-                    } catch (Exception e) {
-                        System.err.println("[SPMEGA] Failed to fetch transactions from server, falling back to DB: " + e.getMessage());
-                        e.printStackTrace();
+        int page = currentPage;
+        System.out.println("[SPMEGA] Transaction history loading started for card: " + cardId + ", page: " + page);
+        git.yawaflua.tech.spmega.ModConfig config = git.yawaflua.tech.spmega.SPMega.getConfig();
+        CompletableFuture<List<LocalTransaction>> remote = config != null && config.allowBackend()
+                ? BackendAuthenticator.fetchTransactionsFromBackendAsync(cardId, page)
+                  .whenComplete((list, exception) -> {
+                      if (exception == null) {
+                          System.out.println("[SPMEGA] Fetched " + list.size() + " transactions from backend.");
+                      } else {
+                          System.err.println("[SPMEGA] Failed to fetch transactions from server, falling back to DB: "
+                                             + exception.getMessage());
+                      }
+                  })
+                  .exceptionally(exception -> null)
+                : CompletableFuture.completedFuture(null);
+
+        remote.thenApply(list -> {
+                    if (list != null) {
+                        return list;
                     }
-                }
-
-                if (list == null) {
-                    list = BankUiService.instance().getDatabase().loadTransferHistory(cardId);
-                    System.out.println("[SPMEGA] Loaded " + (list != null ? list.size() : "null") + " transactions from database.");
-                }
-
-                List<LocalTransaction> finalList = list != null ? list : new ArrayList<>();
-                MinecraftClient minecraftClient = MinecraftClient.getInstance();
-                if (minecraftClient != null) {
+                    List<LocalTransaction> local = BankUiService.instance().getDatabase().loadTransferHistory(cardId);
+                    System.out.println("[SPMEGA] Loaded " + local.size() + " transactions from database.");
+                    return local;
+                })
+                .whenComplete((list, exception) -> {
+                    MinecraftClient minecraftClient = MinecraftClient.getInstance();
+                    if (minecraftClient == null) {
+                        System.out.println("[SPMEGA] MinecraftClient.getInstance() is null in loadTransactions callback!");
+                        return;
+                    }
                     minecraftClient.execute(() -> {
-                        System.out.println("[SPMEGA] Setting transactions list on main thread. Count: " + finalList.size());
-                        this.transactions.addAll(finalList);
-                        this.scrollOffset = 0;
-                        this.loading = false;
+                        if (exception != null) {
+                            errorMessage = exception.getMessage();
+                        } else {
+                            System.out.println("[SPMEGA] Setting transactions list on main thread. Count: " + list.size());
+                            transactions.addAll(list);
+                            scrollOffset = 0;
+                        }
+                        loading = false;
                     });
-                } else {
-                    System.out.println("[SPMEGA] MinecraftClient.getInstance() is null in loadTransactions callback!");
-                }
-            } catch (Exception e) {
-                System.err.println("[SPMEGA] Outer exception in loadTransactions: " + e.getMessage());
-                e.printStackTrace();
-                MinecraftClient minecraftClient = MinecraftClient.getInstance();
-                if (minecraftClient != null) {
-                    minecraftClient.execute(() -> {
-                        this.errorMessage = e.getMessage();
-                        this.loading = false;
-                    });
-                }
-            }
-        });
+                });
     }
 
     @Override

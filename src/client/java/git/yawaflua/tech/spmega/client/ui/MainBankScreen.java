@@ -40,7 +40,7 @@ public class MainBankScreen extends Screen {
 
         this.addDrawableChild(ButtonWidget.builder(Text.translatable("button.spmega.scan_qr"), button -> {
             this.client.setScreen(null);
-            QRCodeScanner.ScanQrCode(this.client);
+            QRCodeScanner.scanQrCode(this.client);
         }).dimensions(centerX - 60, y + 28, 120, 20).build());
     }
 

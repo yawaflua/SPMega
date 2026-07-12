@@ -43,7 +43,7 @@ public final class ConfigManager {
         }
 
         boolean allowAccess = readBoolean(properties, "allow.backend", defaults.allowBackend());
-        String rawAllowAccess = properties.getProperty("sign.quickPay.enabled");
+        String rawAllowAccess = properties.getProperty("allow.backend");
         if (rawAllowAccess == null || !Boolean.toString(allowAccess).equalsIgnoreCase(rawAllowAccess.trim())) {
             shouldSave = true;
         }
@@ -66,6 +66,14 @@ public final class ConfigManager {
             shouldSave = true;
         }
 
+        GpsHudPosition notificationPosition = readEnum(
+                properties, "notifications.position", GpsHudPosition.class, defaults.notificationPosition());
+        String rawNotificationPosition = properties.getProperty("notifications.position");
+        if (rawNotificationPosition == null
+                || !notificationPosition.name().equalsIgnoreCase(rawNotificationPosition.trim())) {
+            shouldSave = true;
+        }
+
         boolean telemetryEnabled = readBoolean(properties, "telemetry.enabled", defaults.telemetryEnabled());
         String rawTelemetry = properties.getProperty("telemetry.enabled");
         if (rawTelemetry == null || !Boolean.toString(telemetryEnabled).equalsIgnoreCase(rawTelemetry.trim())) {
@@ -85,6 +93,7 @@ public final class ConfigManager {
         }
 
         ModConfig config = new ModConfig(apiDomain, apiToken, allowAccess, signQuickPayEnabled, gpsEnabled, gpsPosition,
+                notificationPosition,
                 telemetryEnabled, telemetryIntervalSeconds, telemetryCollectSystemInfo);
 
 
@@ -145,9 +154,11 @@ public final class ConfigManager {
         Properties properties = new Properties();
         properties.setProperty("api.domain", config.apiDomain());
         properties.setProperty("api.token", config.apiToken());
+        properties.setProperty("allow.backend", Boolean.toString(config.allowBackend()));
         properties.setProperty("sign.quickPay.enabled", Boolean.toString(config.signQuickPayEnabled()));
         properties.setProperty("gps.enabled", Boolean.toString(config.gpsEnabled()));
         properties.setProperty("gps.position", config.gpsPosition().name());
+        properties.setProperty("notifications.position", config.notificationPosition().name());
         properties.setProperty("telemetry.enabled", Boolean.toString(config.telemetryEnabled()));
         properties.setProperty("telemetry.intervalSeconds", Integer.toString(config.telemetryIntervalSeconds()));
         properties.setProperty("telemetry.collectSystemInfo", Boolean.toString(config.telemetryCollectSystemInfo()));

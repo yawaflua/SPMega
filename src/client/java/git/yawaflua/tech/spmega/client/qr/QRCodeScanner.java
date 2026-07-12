@@ -9,18 +9,27 @@ import git.yawaflua.tech.spmega.client.telemetry.TelemetryEvent;
 import git.yawaflua.tech.spmega.client.ui.QRcodeAcceptScreen;
 import git.yawaflua.tech.spmega.client.ui.UiNotifications;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.util.ScreenshotRecorder;
 import net.minecraft.text.Text;
 
-import java.awt.image.BufferedImage;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-public class QRCodeScanner {
+public final class QRCodeScanner {
+    private static final ExecutorService DECODER = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "SPMega-QR-Decoder");
+        thread.setDaemon(true);
+        return thread;
+    });
 
-    public static void ScanQrCode(MinecraftClient client) {
+    private QRCodeScanner() {
+    }
+
+    public static void scanQrCode(MinecraftClient client) {
         if (client == null || client.player == null || client.getFramebuffer() == null) {
             return;
         }
@@ -46,24 +55,24 @@ public class QRCodeScanner {
                         return;
                     }
 
-                    String result = decodeQRCode(nativeImageToBufferedImage(nativeImage));
-                    long scanNs = System.nanoTime();
-                    boolean didLag = (scanNs - startNs) > 50_000_000L;
-                    client.execute(() -> {
-                        if (client.player == null) {
-                            return;
-                        }
-                        if (result == null) {
-                            notifications.show(Text.translatable("message.spmega.qr.not_found"));
-                            return;
-                        }
-
-                        Text clickableLink = Text.literal(result)
-                                .styled(style -> style.withInsertion(result));
-                        client.player.sendMessage(Text.translatable("message.spmega.qr.found_link", clickableLink), false);
-                        client.setScreen(new QRcodeAcceptScreen(result, client.currentScreen));
-                    });
-                    recordQrEvent(result != null, didLag, result, null, startNs);
+                    int width = nativeImage.getWidth();
+                    int height = nativeImage.getHeight();
+                    int[] pixels = nativeImage.copyPixelsArgb();
+                    CompletableFuture.supplyAsync(() -> decodeQrCode(width, height, pixels), DECODER)
+                            .whenComplete((result, throwable) -> {
+                                client.execute(() -> showResult(client, notifications, result, throwable));
+                                recordQrEvent(
+                                        throwable == null && result != null,
+                                        System.nanoTime() - startNs > 50_000_000L,
+                                        result,
+                                        throwable == null ? null : throwable.getClass().getSimpleName() + ": " + throwable.getMessage(),
+                                        startNs
+                                );
+                            });
+                } catch (Exception exception) {
+                    client.execute(() -> notifications.show(Text.translatable("message.spmega.qr.error")));
+                    recordQrEvent(false, false, null,
+                            exception.getClass().getSimpleName() + ": " + exception.getMessage(), startNs);
                 } finally {
                     if (nativeImage != null) {
                         nativeImage.close();
@@ -74,6 +83,29 @@ public class QRCodeScanner {
             notifications.show(Text.translatable("message.spmega.qr.error"));
             recordQrEvent(false, false, null, ex.getClass().getSimpleName() + ": " + ex.getMessage(), startNs);
         }
+    }
+
+    private static void showResult(
+            MinecraftClient client,
+            UiNotifications notifications,
+            String result,
+            Throwable throwable
+    ) {
+        if (client.player == null) {
+            return;
+        }
+        if (throwable != null) {
+            notifications.show(Text.translatable("message.spmega.qr.error"));
+            return;
+        }
+        if (result == null) {
+            notifications.show(Text.translatable("message.spmega.qr.not_found"));
+            return;
+        }
+
+        Text clickableLink = Text.literal(result).styled(style -> style.withInsertion(result));
+        client.player.sendMessage(Text.translatable("message.spmega.qr.found_link", clickableLink), false);
+        client.setScreen(new QRcodeAcceptScreen(result, client.currentScreen));
     }
 
     private static void recordQrEvent(boolean success, boolean didLag, String decodedUrl, String error, long startNs) {
@@ -90,31 +122,14 @@ public class QRCodeScanner {
         TelemetryCollector.instance().record(TelemetryEvent.now("qr_scan", payload));
     }
 
-    private static BufferedImage nativeImageToBufferedImage(NativeImage screenshot) {
-        BufferedImage bufferedImage = new BufferedImage(
-                screenshot.getWidth(),
-                screenshot.getHeight(),
-                BufferedImage.TYPE_INT_RGB
-        );
-
-        for (int y = 0; y < screenshot.getHeight(); y++) {
-            for (int x = 0; x < screenshot.getWidth(); x++) {
-                int color = screenshot.getColorArgb(x, y);
-                bufferedImage.setRGB(x, y, color);
-            }
-        }
-
-        return bufferedImage;
-    }
-
-    private static String decodeQRCode(BufferedImage image) {
+    private static String decodeQrCode(int width, int height, int[] pixels) {
         Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
         hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
         hints.put(DecodeHintType.POSSIBLE_FORMATS, Collections.singletonList(BarcodeFormat.QR_CODE));
         hints.put(DecodeHintType.CHARACTER_SET, "UTF-8");
         hints.put(DecodeHintType.ALSO_INVERTED, Boolean.TRUE);
 
-        LuminanceSource source = new RGBLuminanceSource(image.getWidth(), image.getHeight(), image.getRGB(0, 0, image.getWidth(), image.getHeight(), null, 0, image.getWidth()));
+        LuminanceSource source = new RGBLuminanceSource(width, height, pixels);
 
         String result = tryDecodeWithStrategies(source, hints);
 

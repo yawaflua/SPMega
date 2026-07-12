@@ -5,17 +5,22 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.Strictness;
 import com.google.gson.stream.JsonReader;
+import git.yawaflua.tech.spmega.GpsHudPosition;
+import git.yawaflua.tech.spmega.SPMega;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.text.Text;
 
 import java.awt.*;
+import java.util.ArrayDeque;
+import java.util.Queue;
 
 public final class UiNotifications {
     private static final int DEFAULT_DURATION_TICKS = 70;
     private static final UiNotifications INSTANCE = new UiNotifications();
 
     private Text currentText = Text.empty();
+    private final Queue<Text> queuedTexts = new ArrayDeque<>();
     private int remainingTicks;
 
     private UiNotifications() {
@@ -62,6 +67,17 @@ public final class UiNotifications {
         show(Text.literal(extractMessage(message)));
     }
 
+    public synchronized void showQueued(Text text) {
+        if (text == null || text.getString().isBlank()) {
+            return;
+        }
+        if (!isVisible()) {
+            show(text);
+        } else {
+            queuedTexts.add(text);
+        }
+    }
+
     public synchronized void render(DrawContext context, TextRenderer textRenderer, int width, int height) {
         if (!isVisible()) {
             return;
@@ -72,8 +88,18 @@ public final class UiNotifications {
         int textWidth = textRenderer.getWidth(message);
         int boxWidth = textWidth + padding * 2;
         int boxHeight = textRenderer.fontHeight + padding * 2;
-        int x = width - boxWidth - 10;
-        int y = height - boxHeight - 10;
+        GpsHudPosition position = SPMega.getConfig() == null
+                ? GpsHudPosition.BOTTOM_RIGHT
+                : SPMega.getConfig().notificationPosition();
+        int x = switch (position) {
+            case TOP_LEFT, BOTTOM_LEFT -> 10;
+            case TOP_CENTER, BOTTOM_CENTER -> (width - boxWidth) / 2;
+            case TOP_RIGHT, BOTTOM_RIGHT -> width - boxWidth - 10;
+        };
+        int y = switch (position) {
+            case TOP_LEFT, TOP_CENTER, TOP_RIGHT -> 10;
+            case BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT -> height - boxHeight - 10;
+        };
 
         context.fill(x, y, x + boxWidth, y + boxHeight, Color.DARK_GRAY.getRGB());
         context.drawTextWithShadow(textRenderer, currentText, x + padding, y + padding, Color.WHITE.getRGB());
@@ -85,8 +111,8 @@ public final class UiNotifications {
         }
         remainingTicks--;
         if (remainingTicks <= 0) {
-            currentText = Text.empty();
-            remainingTicks = 0;
+            currentText = queuedTexts.isEmpty() ? Text.empty() : queuedTexts.remove();
+            remainingTicks = currentText.getString().isBlank() ? 0 : DEFAULT_DURATION_TICKS;
         }
     }
 

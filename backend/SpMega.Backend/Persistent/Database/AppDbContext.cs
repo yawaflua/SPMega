@@ -12,8 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     internal DbSet<Transaction> Transactions { get; set; }
     internal DbSet<User> Users { get; set; }
     internal DbSet<UserSession> UserSessions { get; set; }
-    internal DbSet<ModTelemetryDocument> ModTelemetry { get; set; }
-    internal DbSet<BackendRequestTelemetryDocument> BackendRequestTelemetry { get; set; }
+    internal DbSet<Notification> Notifications { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

@@ -27,7 +27,6 @@ import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import org.lwjgl.glfw.GLFW;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -107,7 +106,7 @@ public class SPMegaClient implements ClientModInitializer {
                 UiOpeners.openMainMenu(client);
             }
             while (scanQrKeyBinding.wasPressed()) {
-                QRCodeScanner.ScanQrCode(client);
+                QRCodeScanner.scanQrCode(client);
             }
             while (toggleGpsKeyBinding.wasPressed()) {
                 GpsHudRenderer.instance().toggle();
@@ -120,6 +119,7 @@ public class SPMegaClient implements ClientModInitializer {
                             current.signQuickPayEnabled(),
                             GpsHudRenderer.instance().isEnabled(),
                             current.gpsPosition(),
+                            current.notificationPosition(),
                             current.telemetryEnabled(),
                             current.telemetryIntervalSeconds(),
                             current.telemetryCollectSystemInfo()
@@ -232,7 +232,8 @@ public class SPMegaClient implements ClientModInitializer {
         });
 
         new ChatListener().register();
-        CompletableFuture.runAsync(() -> BackendAuthenticator.authenticate(MinecraftClient.getInstance()))
+        WebhookNotificationPoller.instance().start();
+        BackendAuthenticator.authenticateAsync(MinecraftClient.getInstance())
                 .exceptionally(throwable -> {
                     System.err.println("[SPMEGA] Error during async authenticate: " + throwable.getMessage());
                     return null;

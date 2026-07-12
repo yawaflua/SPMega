@@ -34,6 +34,7 @@ public class ModMenuIntegration implements ModMenuApi {
             final boolean[] allowBackend = {current.allowBackend()};
             final boolean[] signQuickPayEnabled = {current.signQuickPayEnabled()};
             final GpsHudPosition[] gpsPosition = {current.gpsPosition()};
+            final GpsHudPosition[] notificationPosition = {current.notificationPosition()};
 
             final boolean[] telemetryEnabled = {current.telemetryEnabled()};
             final int[] telemetryIntervalSeconds = {current.telemetryIntervalSeconds()};
@@ -59,10 +60,12 @@ public class ModMenuIntegration implements ModMenuApi {
                     .setTooltip(Text.literal("Запустить процесс авторизации через Mojang и ваш бэкенд"))
                     .setSaveConsumer(newValue -> {
                         if (newValue) {
-                            BackendAuthenticator.authenticate(MinecraftClient.getInstance());
-                            if (SPMega.getConfig() != null) {
-                                apiToken[0] = SPMega.getConfig().apiToken();
-                            }
+                            BackendAuthenticator.authenticateAsync(MinecraftClient.getInstance())
+                                    .thenAccept(authenticated -> {
+                                        if (authenticated && SPMega.getConfig() != null) {
+                                            apiToken[0] = SPMega.getConfig().apiToken();
+                                        }
+                                    });
                         } else {
                             apiToken[0] = ModConfig.DEFAULT_API_TOKEN;
                         }
@@ -82,6 +85,17 @@ public class ModMenuIntegration implements ModMenuApi {
                     .setDefaultValue(ModConfig.DEFAULT_GPS_POSITION)
                     .setEnumNameProvider(position -> Text.translatable("option.spmega.gps_position." + position.name().toLowerCase()))
                     .setSaveConsumer(newValue -> gpsPosition[0] = newValue)
+                    .build());
+
+            general.addEntry(entryBuilder.startEnumSelector(
+                            Text.translatable("option.spmega.notification_position"),
+                            GpsHudPosition.class,
+                            current.notificationPosition()
+                    )
+                    .setDefaultValue(ModConfig.DEFAULT_NOTIFICATION_POSITION)
+                    .setEnumNameProvider(position -> Text.translatable(
+                            "option.spmega.notification_position." + position.name().toLowerCase()))
+                    .setSaveConsumer(newValue -> notificationPosition[0] = newValue)
                     .build());
 
             // Telemetry settings
@@ -119,6 +133,7 @@ public class ModMenuIntegration implements ModMenuApi {
                         signQuickPayEnabled[0],
                         gpsEnabledVal,
                         gpsPosition[0],
+                        notificationPosition[0],
                         telemetryEnabled[0],
                         telemetryIntervalSeconds[0],
                         telemetryCollectSystemInfo[0]

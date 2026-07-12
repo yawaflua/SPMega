@@ -14,7 +14,7 @@ public class TelemetryController : ControllerBase
     private static readonly ActivitySource Source = new("SpMega.ModTelemetry");
 
     [HttpPost]
-    [Authorize]
+    [AllowAnonymous]
     public IActionResult Post([FromBody] ModTelemetryBatchDto batch)
     {
         if (batch?.Events == null || batch.Events.Count == 0)
@@ -28,7 +28,7 @@ public class TelemetryController : ControllerBase
 
         foreach (var e in batch.Events)
         {
-            using var activity = Source.StartActivity("mod.telemetry.event", ActivityKind.Internal);
+            using var activity = Source.StartActivity("mod.telemetry.event", ActivityKind.Client);
             if (activity is null) continue;
 
             activity.SetTag("user.id", userId);
@@ -38,6 +38,7 @@ public class TelemetryController : ControllerBase
             activity.SetTag("event.timestamp", e.Timestamp.ToString("O"));
             activity.SetTag("event.payload", JsonSerializer.Serialize(e.Payload));
             activity.SetTag("batch.sent_at", batch.SentAt.ToString("O"));
+            
         }
 
         return Ok(new { received = batch.Events.Count });

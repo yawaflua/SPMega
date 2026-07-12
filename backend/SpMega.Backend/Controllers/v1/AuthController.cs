@@ -71,13 +71,35 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
             
             var dto = await resp.Content.ReadFromJsonAsync<MojangDto>();
             if (dto == null || dto.Name != session.UserName || Guid.Parse(dto.Id) != session.UserId) throw new Exception("Session expired, or dto is not acceptable.");
+            
+            
             var token = tokenService.GenerateAccessToken(session.UserName, body.userUUID);
             var user = await dbContext.Users.FirstOrDefaultAsync(k => k.Id == session.UserId);
+            
+            var shortId = string.Empty;
+            
+            if (user?.ShortId == null)
+            {
+                shortId = Program.GenerateRandomString(2);
+                while (true)
+                {
+                    var a = await dbContext.Users.FirstOrDefaultAsync(k => k.ShortId == shortId);
+                    if (a != null)
+                    {
+                        shortId = Program.GenerateRandomString(2);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
             if (user != null)
             {
                 user.Token = token;
                 user.Username = session.UserName;
                 user.UpdatedAt = DateTime.UtcNow;
+                user.ShortId ??= shortId;
                 
                 dbContext.Update(user);
             }
@@ -88,7 +110,8 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
                     Id = body.userUUID,
                     Username = session.UserName,
                     Token = token,
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow,
+                    ShortId = shortId,
                 };
                 await dbContext.AddAsync(user);
             }

@@ -23,9 +23,23 @@ public final class BankDatabase {
                             card_number TEXT,
                             balance INTEGER NOT NULL DEFAULT 0,
                             owner_uuid TEXT,
+                            webhook_enabled INTEGER NOT NULL DEFAULT 0,
                             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
                         )
                         """);
+                boolean hasWebhookColumn = false;
+                try (ResultSet columns = statement.executeQuery("PRAGMA table_info(cards)")) {
+                    while (columns.next()) {
+                        if ("webhook_enabled".equals(columns.getString("name"))) {
+                            hasWebhookColumn = true;
+                            break;
+                        }
+                    }
+                }
+                if (!hasWebhookColumn) {
+                    statement.executeUpdate(
+                            "ALTER TABLE cards ADD COLUMN webhook_enabled INTEGER NOT NULL DEFAULT 0");
+                }
                 statement.executeUpdate("""
                         CREATE TABLE IF NOT EXISTS transfer_history (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,8 +114,31 @@ public final class BankDatabase {
         }
     }
 
+    public synchronized void setWebhookEnabled(String cardId, boolean enabled) {
+        String sql = "UPDATE cards SET webhook_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE card_id = ?";
+        try (Connection connection = open(); PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setBoolean(1, enabled);
+            statement.setString(2, cardId);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new RuntimeException("Failed to update webhook state", exception);
+        }
+    }
+
+    public synchronized boolean hasWebhookEnabledCards() {
+        try (Connection connection = open();
+             PreparedStatement statement = connection.prepareStatement(
+                     "SELECT 1 FROM cards WHERE webhook_enabled = 1 LIMIT 1");
+             ResultSet result = statement.executeQuery()) {
+            return result.next();
+        } catch (SQLException exception) {
+            throw new RuntimeException("Failed to read webhook state", exception);
+        }
+    }
+
     public synchronized List<StoredCard> loadCards() {
-        String sql = "SELECT card_id, card_token, card_name, card_number, balance, owner_uuid FROM cards ORDER BY updated_at DESC";
+        String sql = "SELECT card_id, card_token, card_name, card_number, balance, owner_uuid, webhook_enabled "
+                + "FROM cards ORDER BY updated_at DESC";
         List<StoredCard> result = new ArrayList<>();
         try (Connection connection = open();
              PreparedStatement statement = connection.prepareStatement(sql);
@@ -113,7 +150,8 @@ public final class BankDatabase {
                         rs.getString("card_name"),
                         rs.getString("card_number"),
                         rs.getLong("balance"),
-                        rs.getString("owner_uuid")
+                        rs.getString("owner_uuid"),
+                        rs.getBoolean("webhook_enabled")
                 ));
             }
             return result;

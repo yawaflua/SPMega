@@ -37,12 +37,7 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
                ShortId = "00000000",
                ReceiverName = "yawaflua",
                ReceiverCardNumber = "00000",
-               Sender = new User
-               {
-                  Id = default,
-                  Username = "yawaflua",
-                  Token = "123",
-               },
+               SenderMinecraftName = "yawaflua",
                SenderCardNumber = "010101",
                Amount = 42,
                Comment = "API FIRST",
@@ -76,13 +71,13 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
       }
 
       
-      var shortId = Program.GenerateRandomString(5);
+      var shortId = Program.GenerateRandomString(2);
       while (true)
       {
-            var a = await context.Transactions.FirstOrDefaultAsync(k => k.ShortId == shortId);
+            var a = await context.Transactions.FirstOrDefaultAsync(k => k.ShortId == shortId && EF.Property<Guid>(k, "SenderId") == user.Id);
             if (a != null)
             {
-               shortId = Program.GenerateRandomString(5);
+               shortId = Program.GenerateRandomString(2);
             }
             else
             {
@@ -92,24 +87,23 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
       var transaction = new Transaction
       {
          ReceiverName = body.receiverName,
-         ShortId = shortId,
+         ShortId = $"{user.ShortId}{shortId}",
          ReceiverCardNumber = body.receiverCard,
          Sender = user,
-         SenderCardNumber = body.cardId,
+         SenderCardNumber = cardToUse.SpworldsID,
+         SenderMinecraftName = user.Username,
          Amount = body.amount,
          Comment = body.comment,
       };
       try
       {
-         var uri = "s.ywfl.dev" + "/" + shortId;
+         var uri = "ywfl.dev" + "/s" + shortId;
          var transitionInfo = new Dictionary<string, object>
          {
             { "receiver", body.receiverCard },
             { "amount", body.amount },
-            { "comment", (body.comment)[8..] + "..;Чек:"+ uri }
+            { "comment", (body.comment)[10..] + "..;Чек:"+ uri }
          };
-         Console.WriteLine(((body.comment)[8..] + "..;Чек:"+ uri).Length);
-         Console.WriteLine(((body.comment)[8..] + "..;Чек:"+ uri));
          var resp = await SendRequest(endpoint: "transactions", body: transitionInfo, AuthHeader: new("Bearer", cardToUse.Token));
          var balance = (int?)JsonNode.Parse(resp)?["balance"];
          if (balance == null)
@@ -131,6 +125,12 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
       {
          Id = transaction.Id,
          ReceiverName = transaction.ReceiverName,
+         ReceiverCardNumber = transaction.ReceiverCardNumber,
+         SenderMinecraftName = transaction.SenderMinecraftName,
+         SenderCardNumber = transaction.SenderCardNumber,
+         Amount = transaction.Amount,
+         Comment = transaction.Comment,
+         TransactionDate = transaction.TransactionDate
       });
    }
 

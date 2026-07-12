@@ -9,6 +9,8 @@ public class Card
     public string Name { get; set; }
     public string SpworldsID { get; set; }
     public string Token { get; set; }
+    public string ShortId { get; set; } = "";
+    public bool WebhookConnected { get; set; } = false;
 
     public int Balance { get; set; } = 0;
     

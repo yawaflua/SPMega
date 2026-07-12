@@ -3,6 +3,8 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using SpMega.Backend.Authetication;
@@ -68,7 +70,10 @@ public class Program
             options.UseMongoDB(mongoClient, "spmega");
         });
 
-        var otlpEndpoint = conf["Otlp:Endpoint"] ?? "http://localhost:4317";
+        var otlpEndpoint = (conf["Otlp__Endpoint"] ?? "http://curiosity:5080/api/default").TrimEnd('/');
+        var otlpHeaders = conf["Otlp__Headers"] ?? throw new InvalidOperationException("Otlp__Headers is not configured.");
+        var tracesEndpoint = new Uri($"{otlpEndpoint}/v1/traces");
+        var metricsEndpoint = new Uri($"{otlpEndpoint}/v1/metrics");
         builder.Services.AddOpenTelemetry()
             .ConfigureResource(res => res.AddService("SpMega.Backend"))
             .WithTracing(tracing =>
@@ -79,9 +84,24 @@ public class Program
                     .AddAspNetCoreInstrumentation()
                     .AddOtlpExporter(opts =>
                     {
-                        opts.Endpoint = new Uri(otlpEndpoint);
+                        opts.Protocol = OtlpExportProtocol.HttpProtobuf;
+                        opts.Endpoint = tracesEndpoint;
+                        opts.Headers = otlpHeaders;
                     });
-            });
+            })
+            .WithMetrics(metrics => metrics
+                .AddAspNetCoreInstrumentation()
+                .AddMeter(
+                    "Microsoft.AspNetCore.Hosting",
+                    "Microsoft.AspNetCore.Server.Kestrel",
+                    "System.Net.Http",
+                    "System.Runtime")
+                .AddOtlpExporter(opts =>
+                {
+                    opts.Protocol = OtlpExportProtocol.HttpProtobuf;
+                    opts.Endpoint = metricsEndpoint;
+                    opts.Headers = otlpHeaders;
+                }));
     
         var app = builder.Build();
 

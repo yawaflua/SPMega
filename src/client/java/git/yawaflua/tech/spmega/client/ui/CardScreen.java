@@ -3,6 +3,7 @@ package git.yawaflua.tech.spmega.client.ui;
 import git.yawaflua.tech.spmega.client.ui.service.BankUiService;
 import git.yawaflua.tech.spmega.client.ui.service.CardViewModel;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.ConfirmScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
@@ -16,6 +17,7 @@ public class CardScreen extends Screen {
     private final UiNotifications notifications = UiNotifications.instance();
     private final List<ButtonWidget> cardButtons = new ArrayList<>();
     private ButtonWidget historyButton;
+    private ButtonWidget webhookButton;
 
     public CardScreen(Screen parent) {
         super(Text.literal("Управление картами"));
@@ -93,8 +95,30 @@ public class CardScreen extends Screen {
             this.client.setScreen(new TransactionHistoryScreen(this, selected.id(), selected.title()));
         }).dimensions(rightX, startY + 72, columnWidth, 20).build());
 
+        webhookButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Включить вебхуки"), button -> {
+            if (this.client == null || bankUiService.getSelectedCard() == null) {
+                notifications.show(Text.literal("Сначала выбери или добавь карту"));
+                return;
+            }
+            this.client.setScreen(new ConfirmScreen(confirmed -> {
+                if (this.client == null) {
+                    return;
+                }
+                this.client.setScreen(this);
+                if (!confirmed) {
+                    return;
+                }
+                bankUiService.registerSelectedWebhookAsync().thenAccept(message -> this.client.execute(() -> {
+                    notifications.showMessage(message);
+                    this.clearAndInit();
+                }));
+            }, Text.literal("Включить обработку вебхуков?"),
+                    Text.literal("Если другой вебхук уже подключен к карте — он может затереться."),
+                    Text.literal("Включить"), Text.literal("Отмена")));
+        }).dimensions(rightX, startY + 96, columnWidth, 20).build());
+
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Назад"), button -> this.close())
-                .dimensions(rightX, startY + 120, columnWidth, 20)
+                .dimensions(rightX, startY + 144, columnWidth, 20)
                 .build());
 
         if (cards.isEmpty()) {
@@ -146,6 +170,12 @@ public class CardScreen extends Screen {
 
         if (historyButton != null) {
             historyButton.active = !cards.isEmpty();
+        }
+        if (webhookButton != null) {
+            CardViewModel selected = bankUiService.getSelectedCard();
+            boolean enabled = selected != null && selected.webhookEnabled();
+            webhookButton.active = selected != null && !enabled;
+            webhookButton.setMessage(Text.literal(enabled ? "Вебхуки включены" : "Включить вебхуки"));
         }
     }
 }

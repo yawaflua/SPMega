@@ -8,12 +8,10 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class SystemInfoCollector {
@@ -38,23 +36,21 @@ public final class SystemInfoCollector {
     }
 
     private void fetchIpAsync() {
-        CompletableFuture.runAsync(() -> {
-            try {
-                HttpClient client = HttpClient.newBuilder()
-                        .connectTimeout(Duration.ofSeconds(5))
-                        .build();
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create("https://api.ipify.org?format=text"))
-                        .timeout(Duration.ofSeconds(5))
-                        .GET()
-                        .build();
-                HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
-                if (resp.statusCode() == 200) {
-                    cachedIp.set(resp.body().trim());
-                }
-            } catch (Exception ignored) {
-            }
-        });
+        HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .build()
+                .sendAsync(HttpRequest.newBuilder()
+                                .uri(URI.create("https://api.ipify.org?format=text"))
+                                .timeout(Duration.ofSeconds(5))
+                                .GET()
+                                .build(),
+                        java.net.http.HttpResponse.BodyHandlers.ofString())
+                .thenAccept(response -> {
+                    if (response.statusCode() == 200) {
+                        cachedIp.set(response.body().trim());
+                    }
+                })
+                .exceptionally(ignored -> null);
     }
 
     private void collectGpuOnRenderThread() {

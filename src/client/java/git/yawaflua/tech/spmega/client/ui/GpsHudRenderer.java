@@ -20,9 +20,8 @@ import java.util.concurrent.TimeUnit;
 
 public final class GpsHudRenderer {
     private static final GpsHudRenderer INSTANCE = new GpsHudRenderer();
-    private final Object citiesLock = new Object();
     private boolean enabled = true;
-    private List<City> cities = new ArrayList<>();
+    private volatile List<City> cities = List.of();
 
     private GpsHudRenderer() {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -50,33 +49,35 @@ public final class GpsHudRenderer {
     }
 
     private void fetchCities() {
-        try {
-            InstrumentedHttpClient client = new InstrumentedHttpClient();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://map.sp-mini.ru/api/map/territories"))
-                    .GET()
-                    .build();
-            var response = client.send(request);
-            if (response.statusCode() == 200) {
-                TerritoryWrapper[] parsed = new Gson().fromJson(response.body(), TerritoryWrapper[].class);
-                if (parsed != null) {
-                    List<City> list = new ArrayList<>();
-                    for (TerritoryWrapper w : parsed) {
-                        if (w != null && w.territory != null && w.territory.nether_portal != null && w.territory.nether_portal.length >= 2) {
-                            City c = new City();
-                            c.name = w.territory.name;
-                            c.netherX = w.territory.nether_portal[0];
-                            c.netherZ = w.territory.nether_portal[1];
-                            list.add(c);
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://map.sp-mini.ru/api/map/territories"))
+                .GET()
+                .build();
+
+        new InstrumentedHttpClient().sendAsync(request)
+                .thenAccept(response -> {
+                    if (response.statusCode() != 200) {
+                        return;
+                    }
+                    TerritoryWrapper[] parsed = new Gson().fromJson(response.body(), TerritoryWrapper[].class);
+                    if (parsed == null) {
+                        return;
+                    }
+                    List<City> updatedCities = new ArrayList<>();
+                    for (TerritoryWrapper wrapper : parsed) {
+                        if (wrapper != null && wrapper.territory != null
+                                && wrapper.territory.nether_portal != null
+                                && wrapper.territory.nether_portal.length >= 2) {
+                            City city = new City();
+                            city.name = wrapper.territory.name;
+                            city.netherX = wrapper.territory.nether_portal[0];
+                            city.netherZ = wrapper.territory.nether_portal[1];
+                            updatedCities.add(city);
                         }
                     }
-                    synchronized (citiesLock) {
-                        cities = list;
-                    }
-                }
-            }
-        } catch (Exception ignored) {
-        }
+                    cities = List.copyOf(updatedCities);
+                })
+                .exceptionally(ignored -> null);
     }
 
     public void render(DrawContext context, TextRenderer textRenderer, int width, int height) {
@@ -102,13 +103,13 @@ public final class GpsHudRenderer {
         String offsetText = "§7Смещение: §f" + (playerLane.offset == 0 ? "0" : (playerLane.offset > 0 ? "+" + playerLane.offset : playerLane.offset));
 
         City nearestCity = null;
-        double minDistanceSq = Double.MAX_VALUE;
+        double minDistanceSquared = Double.MAX_VALUE;
         for (City city : cities) {
             double dx = playerX - (city.netherX / 8);
             double dz = playerZ - (city.netherZ / 8);
-            double distSq = Math.sqrt(dx * dx + dz * dz);
-            if (distSq < minDistanceSq) {
-                minDistanceSq = distSq;
+            double distanceSquared = dx * dx + dz * dz;
+            if (distanceSquared < minDistanceSquared) {
+                minDistanceSquared = distanceSquared;
                 nearestCity = city;
             }
         }

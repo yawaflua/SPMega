@@ -18,43 +18,48 @@ import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
-public class BackendAuthenticator {
+public final class BackendAuthenticator {
 
-    public static boolean authenticate(MinecraftClient client) {
+    private BackendAuthenticator() {
+    }
+
+    public static CompletableFuture<Boolean> authenticateAsync(MinecraftClient client) {
         Session session = client.getSession();
         if (session == null || session.getUuidOrNull() == null) {
             System.err.println("Cannot authenticate: Client has no valid session.");
-            return false;
+            return CompletableFuture.completedFuture(false);
         }
 
         MinecraftSessionService sessionService = client.getApiServices().sessionService();
-
-        try {
-            var serverId = sendStartSessionRequestToBackend(session.getUsername(), session.getUuidOrNull());
-            System.out.println("[SPMEGA] Trying to auth in mojang with serverId: " + serverId);
-            sessionService.joinServer(
-                    session.getUuidOrNull(),
-                    session.getAccessToken(),
-                    serverId
-            );
-            System.out.println("[SPMEGA] Sending session submitter to backend");
-
-            return sendAuthRequestToBackend(session.getUuidOrNull(), serverId);
-
-        } catch (AuthenticationException e) {
-            System.err.println("I cant auth by Mojang: " + e.getMessage());
-            System.err.println("Please check your credentials and try again.");
-            return false;
-
-        } catch (Exception e) {
-            System.err.println("Failed to authenticate with backend: " + e.getMessage());
-            return false;
-
-        }
+        return sendStartSessionRequestToBackendAsync(session.getUsername(), session.getUuidOrNull())
+                .thenCompose(serverId -> CompletableFuture.runAsync(() -> {
+                            System.out.println("[SPMEGA] Trying to auth in mojang with serverId: " + serverId);
+                            try {
+                                sessionService.joinServer(session.getUuidOrNull(), session.getAccessToken(), serverId);
+                            } catch (AuthenticationException exception) {
+                                throw new CompletionException(exception);
+                            }
+                        })
+                        .thenCompose(ignored -> {
+                            System.out.println("[SPMEGA] Sending session submitter to backend");
+                            return sendAuthRequestToBackendAsync(session.getUuidOrNull(), serverId);
+                        }))
+                .exceptionally(throwable -> {
+                    Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
+                    if (cause instanceof AuthenticationException) {
+                        System.err.println("I cant auth by Mojang: " + cause.getMessage());
+                        System.err.println("Please check your credentials and try again.");
+                    } else {
+                        System.err.println("Failed to authenticate with backend: " + cause.getMessage());
+                    }
+                    return false;
+                });
     }
 
-    private static String sendStartSessionRequestToBackend(String username, UUID uuid) throws IOException, InterruptedException {
+    private static CompletableFuture<String> sendStartSessionRequestToBackendAsync(String username, UUID uuid) {
         ModConfig config = SPMega.getConfig();
         String apiDomain = (config != null) ? config.apiDomain() : ModConfig.DEFAULT_API_DOMAIN;
         if (apiDomain == null || apiDomain.isBlank()) {
@@ -78,21 +83,22 @@ public class BackendAuthenticator {
                 .method("POST", HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request);
-        if (response.statusCode() != 200) {
-            System.err.println("[SPMEGA] Server returned status code " + response.statusCode() + " on start: " + response.body());
-            throw new IOException("Server returned status code " + response.statusCode() + " on start: " + response.body());
-        }
-
-        JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
-        if (!json.has("sessionId")) {
-            System.err.println("[SPMEGA] Invalid response from start endpoint: " + response.body());
-            throw new IOException("Invalid response from start endpoint: " + response.body());
-        }
-        return json.get("sessionId").getAsString();
+        return httpClient.sendAsync(request).thenApply(response -> {
+            if (response.statusCode() != 200) {
+                System.err.println("[SPMEGA] Server returned status code " + response.statusCode() + " on start: " + response.body());
+                throw new CompletionException(new IOException(
+                        "Server returned status code " + response.statusCode() + " on start: " + response.body()));
+            }
+            JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+            if (!json.has("sessionId")) {
+                System.err.println("[SPMEGA] Invalid response from start endpoint: " + response.body());
+                throw new CompletionException(new IOException("Invalid response from start endpoint: " + response.body()));
+            }
+            return json.get("sessionId").getAsString();
+        });
     }
 
-    private static boolean sendAuthRequestToBackend(UUID uuid, String serverId) throws IOException, InterruptedException {
+    private static CompletableFuture<Boolean> sendAuthRequestToBackendAsync(UUID uuid, String serverId) {
         ModConfig config = SPMega.getConfig();
         String apiDomain = (config != null) ? config.apiDomain() : ModConfig.DEFAULT_API_DOMAIN;
         if (apiDomain == null || apiDomain.isBlank()) {
@@ -116,37 +122,30 @@ public class BackendAuthenticator {
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request);
-        if (response.statusCode() != 200) {
-            System.err.println("[SPMEGA] Server returned status code " + response.statusCode() + " on validate: " + response.body());
-            throw new IOException("Server returned status code " + response.statusCode() + " on validate: " + response.body());
-        }
+        return httpClient.sendAsync(request).thenApply(response -> {
+            if (response.statusCode() != 200) {
+                System.err.println("[SPMEGA] Server returned status code " + response.statusCode() + " on validate: " + response.body());
+                throw new CompletionException(new IOException(
+                        "Server returned status code " + response.statusCode() + " on validate: " + response.body()));
+            }
+            JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+            if (!json.has("token")) {
+                System.err.println("[SPMEGA] Invalid response from validate endpoint: " + response.body());
+                throw new CompletionException(new IOException("Invalid response from validate endpoint: " + response.body()));
+            }
+            if (config == null) {
+                System.err.println("[SPMEGA] Config is null, cannot save token.");
+                throw new CompletionException(new IOException("Config is null, cannot save token."));
+            }
 
-        JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
-        if (!json.has("token")) {
-            System.err.println("[SPMEGA] Invalid response from validate endpoint: " + response.body());
-            throw new IOException("Invalid response from validate endpoint: " + response.body());
-        }
-        if (config == null) {
-            System.err.println("[SPMEGA] Config is null, cannot save token.");
-            throw new IOException("Config is null, cannot save token.");
-        }
-
-        String token = json.get("token").getAsString();
-        ModConfig updated = new ModConfig(
-                config.apiDomain(),
-                token,
-                config.allowBackend(),
-                config.signQuickPayEnabled(),
-                config.gpsEnabled(),
-                config.gpsPosition(),
-                config.telemetryEnabled(),
-                config.telemetryIntervalSeconds(),
-                config.telemetryCollectSystemInfo()
-        );
-        SPMega.setConfig(updated);
-        System.out.println("[SPMEGA] Backend auth successful, saved token.");
-        return true;
+            String token = json.get("token").getAsString();
+            SPMega.setConfig(new ModConfig(
+                    config.apiDomain(), token, config.allowBackend(), config.signQuickPayEnabled(),
+                    config.gpsEnabled(), config.gpsPosition(), config.notificationPosition(), config.telemetryEnabled(),
+                    config.telemetryIntervalSeconds(), config.telemetryCollectSystemInfo()));
+            System.out.println("[SPMEGA] Backend auth successful, saved token.");
+            return true;
+        });
     }
 
     public static void sendCardToBackend(String cardId, String cardToken) {
@@ -193,10 +192,10 @@ public class BackendAuthenticator {
                 });
     }
 
-    public static List<CardCredentials> fetchCardsFromBackend() throws IOException, InterruptedException {
+    public static CompletableFuture<List<CardCredentials>> fetchCardsFromBackendAsync() {
         ModConfig config = SPMega.getConfig();
         if (config == null || !config.allowBackend()) {
-            return List.of();
+            return CompletableFuture.completedFuture(List.of());
         }
 
         String apiDomain = config.apiDomain();
@@ -216,28 +215,29 @@ public class BackendAuthenticator {
                 .GET()
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request);
-        if (response.statusCode() != 200) {
-            throw new IOException("Server returned status code " + response.statusCode() + " on fetch cards.");
-        }
-
-        com.google.gson.JsonArray cardsArray = JsonParser.parseString(response.body()).getAsJsonArray();
-        List<CardCredentials> cards = new ArrayList<>();
-        for (com.google.gson.JsonElement el : cardsArray) {
-            JsonObject cardJson = el.getAsJsonObject();
-            String cardId = cardJson.has("cardId") && !cardJson.get("cardId").isJsonNull()
-                    ? cardJson.get("cardId").getAsString()
-                    : (cardJson.has("id") && !cardJson.get("id").isJsonNull() ? cardJson.get("id").getAsString() : "");
-
-            String cardToken = cardJson.has("cardToken") && !cardJson.get("cardToken").isJsonNull()
-                    ? cardJson.get("cardToken").getAsString()
-                    : (cardJson.has("token") && !cardJson.get("token").isJsonNull() ? cardJson.get("token").getAsString() : "");
-
-            if (!cardId.isEmpty() && !cardToken.isEmpty()) {
-                cards.add(new CardCredentials(cardId, cardToken));
+        return httpClient.sendAsync(request).thenApply(response -> {
+            if (response.statusCode() != 200) {
+                throw new CompletionException(new IOException(
+                        "Server returned status code " + response.statusCode() + " on fetch cards."));
             }
-        }
-        return cards;
+            com.google.gson.JsonArray cardsArray = JsonParser.parseString(response.body()).getAsJsonArray();
+            List<CardCredentials> cards = new ArrayList<>();
+            for (com.google.gson.JsonElement element : cardsArray) {
+                JsonObject cardJson = element.getAsJsonObject();
+                String cardId = cardJson.has("cardId") && !cardJson.get("cardId").isJsonNull()
+                        ? cardJson.get("cardId").getAsString()
+                        : (cardJson.has("id") && !cardJson.get("id").isJsonNull() ? cardJson.get("id").getAsString() : "");
+                String cardToken = cardJson.has("cardToken") && !cardJson.get("cardToken").isJsonNull()
+                        ? cardJson.get("cardToken").getAsString()
+                        : (cardJson.has("token") && !cardJson.get("token").isJsonNull() ? cardJson.get("token").getAsString() : "");
+                boolean webhookEnabled = cardJson.has("webhookConnected")
+                        && cardJson.get("webhookConnected").getAsBoolean();
+                if (!cardId.isEmpty() && !cardToken.isEmpty()) {
+                    cards.add(new CardCredentials(cardId, cardToken, webhookEnabled));
+                }
+            }
+            return cards;
+        });
     }
 
     public static void deleteCardOnBackend(String cardId) {
@@ -278,10 +278,87 @@ public class BackendAuthenticator {
                 });
     }
 
-    public static boolean createTransactionOnBackend(String senderCardId, String receiver, long amount, String comment) throws IOException, InterruptedException {
+    public static CompletableFuture<Void> registerWebhookForCardAsync(String cardId) {
+        ModConfig config = SPMega.getConfig();
+        if (config == null || !config.allowBackend()) {
+            return CompletableFuture.failedFuture(new IOException("Backend is disabled"));
+        }
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(backendUrl(config, "/api/v1/webhook/" + cardId)))
+                .header("Accept", "application/json")
+                .header("Authorization", "Bearer " + config.apiToken())
+                .PUT(HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        return new InstrumentedHttpClient().sendAsync(request).thenApply(response -> {
+            if (response.statusCode() != 200 && response.statusCode() != 204) {
+                throw new CompletionException(new IOException(
+                        "Server returned status code " + response.statusCode() + ": " + response.body()));
+            }
+            return null;
+        });
+    }
+
+    public static CompletableFuture<List<PaymentNotification>> readNotificationsAsync() {
+        ModConfig config = SPMega.getConfig();
+        if (config == null || !config.allowBackend()
+                || config.apiToken() == null || config.apiToken().isBlank()
+                || ModConfig.DEFAULT_API_TOKEN.equals(config.apiToken())) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(backendUrl(config, "/api/v1/webhook/read")))
+                .header("Accept", "application/json")
+                .header("Authorization", "Bearer " + config.apiToken())
+                .GET()
+                .build();
+
+        return new InstrumentedHttpClient().sendAsync(request).thenApply(response -> {
+            if (response.statusCode() != 200) {
+                throw new CompletionException(new IOException(
+                        "Server returned status code " + response.statusCode() + " on notification read."));
+            }
+            JsonElement parsed = JsonParser.parseString(response.body());
+            com.google.gson.JsonArray array = parsed.isJsonArray()
+                    ? parsed.getAsJsonArray()
+                    : parsed.getAsJsonObject().getAsJsonArray("$values");
+            if (array == null) {
+                return List.of();
+            }
+
+            List<PaymentNotification> notifications = new ArrayList<>();
+            for (JsonElement element : array) {
+                JsonObject json = element.getAsJsonObject();
+                notifications.add(new PaymentNotification(
+                        stringValue(json, "id"),
+                        stringValue(json, "senderName"),
+                        stringValue(json, "senderNumber"),
+                        stringValue(json, "comment"),
+                        json.has("amount") ? json.get("amount").getAsInt() : 0,
+                        stringValue(json, "type")
+                ));
+            }
+            return notifications;
+        });
+    }
+
+    private static String backendUrl(ModConfig config, String path) {
+        String domain = config.apiDomain();
+        if (domain == null || domain.isBlank()) {
+            domain = ModConfig.DEFAULT_API_DOMAIN;
+        }
+        return (domain.endsWith("/") ? domain.substring(0, domain.length() - 1) : domain) + path;
+    }
+
+    private static String stringValue(JsonObject json, String name) {
+        return json.has(name) && !json.get(name).isJsonNull() ? json.get(name).getAsString() : "";
+    }
+
+    public static CompletableFuture<Boolean> createTransactionOnBackendAsync(
+            String senderCardId, String receiver, long amount, String comment) {
         ModConfig config = SPMega.getConfig();
         if (config == null) {
-            throw new IOException("ModConfig is null");
+            return CompletableFuture.failedFuture(new IOException("ModConfig is null"));
         }
 
         String apiDomain = config.apiDomain();
@@ -311,19 +388,22 @@ public class BackendAuthenticator {
                 .PUT(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request);
-        if (response.statusCode() != 200 && response.statusCode() != 201 && response.statusCode() != 204) {
-            throw new IOException("Server returned status code " + response.statusCode() + ": " + response.body());
-        }
-        return true;
+        return httpClient.sendAsync(request).thenApply(response -> {
+            if (response.statusCode() != 200 && response.statusCode() != 201 && response.statusCode() != 204) {
+                throw new CompletionException(new IOException(
+                        "Server returned status code " + response.statusCode() + ": " + response.body()));
+            }
+            return true;
+        });
     }
 
-    public static List<BankDatabase.LocalTransaction> fetchTransactionsFromBackend(String cardId, int page) throws IOException, InterruptedException {
+    public static CompletableFuture<List<BankDatabase.LocalTransaction>> fetchTransactionsFromBackendAsync(
+            String cardId, int page) {
         System.out.println("[SPMEGA] fetchTransactionsFromBackend called for cardId: " + cardId + ", page: " + page);
         ModConfig config = SPMega.getConfig();
         if (config == null || !config.allowBackend()) {
             System.out.println("[SPMEGA] fetchTransactionsFromBackend aborted: config is null or backend not allowed.");
-            return List.of();
+            return CompletableFuture.completedFuture(List.of());
         }
 
         String apiDomain = config.apiDomain();
@@ -344,11 +424,17 @@ public class BackendAuthenticator {
                 .GET()
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request);
+        return httpClient.sendAsync(request)
+                .thenApply(response -> parseTransactionsResponse(response, cardId));
+    }
+
+    private static List<BankDatabase.LocalTransaction> parseTransactionsResponse(
+            HttpResponse<String> response, String cardId) {
         System.out.println("[SPMEGA] Response status code: " + response.statusCode());
         if (response.statusCode() != 200) {
             System.err.println("[SPMEGA] Failed response body: " + response.body());
-            throw new IOException("Server returned status code " + response.statusCode() + " on fetch transactions.");
+            throw new CompletionException(new IOException(
+                    "Server returned status code " + response.statusCode() + " on fetch transactions."));
         }
 
         String body = response.body();
@@ -425,5 +511,9 @@ public class BackendAuthenticator {
         }
         System.out.println("[SPMEGA] Returning " + list.size() + " filtered transactions for card " + cardId);
         return list;
+    }
+
+    public record PaymentNotification(
+            String id, String senderName, String senderNumber, String comment, int amount, String type) {
     }
 }
