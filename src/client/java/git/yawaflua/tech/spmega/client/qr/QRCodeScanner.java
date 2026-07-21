@@ -8,16 +8,16 @@ import git.yawaflua.tech.spmega.client.telemetry.TelemetryCollector;
 import git.yawaflua.tech.spmega.client.telemetry.TelemetryEvent;
 import git.yawaflua.tech.spmega.client.ui.QRcodeAcceptScreen;
 import git.yawaflua.tech.spmega.client.ui.UiNotifications;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.ScreenshotRecorder;
-import net.minecraft.text.Text;
-
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import com.mojang.blaze3d.platform.NativeImage;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.Screenshot;
+import net.minecraft.network.chat.Component;
 
 public final class QRCodeScanner {
     private static final ExecutorService DECODER = Executors.newSingleThreadExecutor(runnable -> {
@@ -29,64 +29,85 @@ public final class QRCodeScanner {
     private QRCodeScanner() {
     }
 
-    public static void scanQrCode(MinecraftClient client) {
-        if (client == null || client.player == null || client.getFramebuffer() == null) {
+    public static void scanQrCode(Minecraft client) {
+        if (client == null || client.player == null || client.gameRenderer.mainRenderTarget() == null) {
             return;
         }
         UiNotifications notifications = UiNotifications.instance();
-        int framebufferWidth = client.getWindow().getFramebufferWidth();
-        int framebufferHeight = client.getWindow().getFramebufferHeight();
+        int framebufferWidth = client.getWindow().getWidth();
+        int framebufferHeight = client.getWindow().getHeight();
         if (framebufferWidth <= 0 || framebufferHeight <= 0) {
-            client.player.sendMessage(Text.translatable("message.spmega.qr.capture_failed"), false);
+            /*? if mc_26 {*/
+             client.player.sendSystemMessage(Component.translatable("message.spmega.qr.capture_failed"));
+            /*?} else {*/
+            /*client.player.displayClientMessage(Component.translatable("message.spmega.qr.capture_failed"), false);
+            *//*?}*/
             return;
         }
 
         long startNs = System.nanoTime();
         try {
-            ScreenshotRecorder.takeScreenshot(client.getFramebuffer(), nativeImage -> {
-                try {
-                    if (nativeImage == null || nativeImage.getWidth() <= 0 || nativeImage.getHeight() <= 0) {
-                        client.execute(() -> {
-                            if (client.player != null) {
-                                notifications.show(Text.translatable("message.spmega.qr.capture_failed"));
-                            }
-                        });
-                        recordQrEvent(false, false, null, "capture_failed", startNs);
-                        return;
-                    }
-
-                    int width = nativeImage.getWidth();
-                    int height = nativeImage.getHeight();
-                    int[] pixels = nativeImage.copyPixelsArgb();
-                    CompletableFuture.supplyAsync(() -> decodeQrCode(width, height, pixels), DECODER)
-                            .whenComplete((result, throwable) -> {
-                                client.execute(() -> showResult(client, notifications, result, throwable));
-                                recordQrEvent(
-                                        throwable == null && result != null,
-                                        System.nanoTime() - startNs > 50_000_000L,
-                                        result,
-                                        throwable == null ? null : throwable.getClass().getSimpleName() + ": " + throwable.getMessage(),
-                                        startNs
-                                );
-                            });
-                } catch (Exception exception) {
-                    client.execute(() -> notifications.show(Text.translatable("message.spmega.qr.error")));
-                    recordQrEvent(false, false, null,
-                            exception.getClass().getSimpleName() + ": " + exception.getMessage(), startNs);
-                } finally {
-                    if (nativeImage != null) {
-                        nativeImage.close();
-                    }
-                }
+            /*? if mc_1_21_11 {*/
+            Screenshot.takeScreenshot(client.gameRenderer.mainRenderTarget(), nativeImage -> {
+                processCapturedImage(client, notifications, nativeImage, startNs);
             });
+            /*?} else {*/
+            // processCapturedImage(client, notifications, Screenshot.takeScreenshot(client.gameRenderer.mainRenderTarget()), startNs);
+            /*?}*/
         } catch (Exception ex) {
-            notifications.show(Text.translatable("message.spmega.qr.error"));
+            notifications.show(Component.translatable("message.spmega.qr.error"));
             recordQrEvent(false, false, null, ex.getClass().getSimpleName() + ": " + ex.getMessage(), startNs);
         }
     }
 
+    private static void processCapturedImage(
+            Minecraft client,
+            UiNotifications notifications,
+            NativeImage nativeImage,
+            long startNs
+    ) {
+        try {
+            if (nativeImage == null || nativeImage.getWidth() <= 0 || nativeImage.getHeight() <= 0) {
+                client.execute(() -> {
+                    if (client.player != null) {
+                        notifications.show(Component.translatable("message.spmega.qr.capture_failed"));
+                    }
+                });
+                recordQrEvent(false, false, null, "capture_failed", startNs);
+                return;
+            }
+
+            int width = nativeImage.getWidth();
+            int height = nativeImage.getHeight();
+            /*? if mc_1_21_11 {*/
+            int[] pixels = nativeImage.getPixels();
+            /*?} else {*/
+            // int[] pixels = nativeImage.getPixelsRGBA();
+            /*?}*/
+            CompletableFuture.supplyAsync(() -> decodeQrCode(width, height, pixels), DECODER)
+                    .whenComplete((result, throwable) -> {
+                        client.execute(() -> showResult(client, notifications, result, throwable));
+                        recordQrEvent(
+                                throwable == null && result != null,
+                                System.nanoTime() - startNs > 50_000_000L,
+                                result,
+                                throwable == null ? null : throwable.getClass().getSimpleName() + ": " + throwable.getMessage(),
+                                startNs
+                        );
+                    });
+        } catch (Exception exception) {
+            client.execute(() -> notifications.show(Component.translatable("message.spmega.qr.error")));
+            recordQrEvent(false, false, null,
+                    exception.getClass().getSimpleName() + ": " + exception.getMessage(), startNs);
+        } finally {
+            if (nativeImage != null) {
+                nativeImage.close();
+            }
+        }
+    }
+
     private static void showResult(
-            MinecraftClient client,
+            Minecraft client,
             UiNotifications notifications,
             String result,
             Throwable throwable
@@ -95,17 +116,21 @@ public final class QRCodeScanner {
             return;
         }
         if (throwable != null) {
-            notifications.show(Text.translatable("message.spmega.qr.error"));
+            notifications.show(Component.translatable("message.spmega.qr.error"));
             return;
         }
         if (result == null) {
-            notifications.show(Text.translatable("message.spmega.qr.not_found"));
+            notifications.show(Component.translatable("message.spmega.qr.not_found"));
             return;
         }
 
-        Text clickableLink = Text.literal(result).styled(style -> style.withInsertion(result));
-        client.player.sendMessage(Text.translatable("message.spmega.qr.found_link", clickableLink), false);
-        client.setScreen(new QRcodeAcceptScreen(result, client.currentScreen));
+        Component clickableLink = Component.literal(result).withStyle(style -> style.withInsertion(result));
+        /*? if mc_26 {*/
+         client.player.sendSystemMessage(Component.translatable("message.spmega.qr.found_link", clickableLink));
+        /*?} else {*/
+        /*client.player.displayClientMessage(Component.translatable("message.spmega.qr.found_link", clickableLink), false);
+        *//*?}*/
+        client.gui.setScreen(new QRcodeAcceptScreen(result, client.gui.screen()));
     }
 
     private static void recordQrEvent(boolean success, boolean didLag, String decodedUrl, String error, long startNs) {
@@ -165,4 +190,3 @@ public final class QRCodeScanner {
         return null;
     }
 }
-

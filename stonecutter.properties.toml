@@ -1,0 +1,31 @@
+[constants]
+mod_id = "spmega"
+
+[dependencies]
+fabric_version = "0.141.5+1.21.11"
+cloth_config_version = "21.11.153"
+modmenu_version = "v6Xx3fbU"
+
+[metadata]
+minecraft_compat = "1.21.11"
+loader_compat = "0.18.1"
+
+["1.21.1"]
+dependencies.fabric_version = "0.116.10+1.21.1"
+dependencies.cloth_config_version = "15.0.140"
+dependencies.modmenu_version = "v6Xx3fbU"
+metadata.minecraft_compat = "1.21.1"
+
+["26.1.x"]
+dependencies.fabric_version = "0.155.2+26.1.2"
+dependencies.cloth_config_version = "26.1.154"
+dependencies.modmenu_version = "3rsoV1bk"
+metadata.minecraft_compat = "~26.1"
+metadata.loader_compat = "0.19.0"
+
+["26.2.x"]
+dependencies.fabric_version = "0.155.2+26.2"
+dependencies.cloth_config_version = "26.2.155"
+dependencies.modmenu_version = "njXb639R"
+metadata.minecraft_compat = "~26.2"
+metadata.loader_compat = "0.19.0"

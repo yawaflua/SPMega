@@ -1,10 +1,14 @@
 package git.yawaflua.tech.spmega.client.ui;
 
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+/*? if mc_1_21_11 {*/
 import net.minecraft.util.Util;
+/*?} else {*/
+// import net.minecraft.Util;
+/*?}*/
 
 import java.awt.*;
 import java.net.URI;
@@ -14,7 +18,7 @@ public class QRcodeAcceptScreen extends Screen {
     private final Screen parent;
 
     public QRcodeAcceptScreen(String url, Screen parent) {
-        super(Text.translatable("screen.spmega.qr.confirm_title"));
+        super(Component.translatable("screen.spmega.qr.confirm_title"));
         this.url = url;
         this.parent = parent;
     }
@@ -23,44 +27,55 @@ public class QRcodeAcceptScreen extends Screen {
     protected void init() {
 
 
-        this.addDrawableChild(ButtonWidget.builder(Text.translatable("button.spmega.qr.cancel"), button -> {
-            if (this.client != null) {
-                this.client.setScreen(parent);
+        this.addRenderableWidget(Button.builder(Component.translatable("button.spmega.qr.cancel"), button -> {
+            if (this.minecraft != null) {
+                this.minecraft.gui.setScreen(parent);
             }
-        }).dimensions(this.width / 2 - 155, this.height / 2 + 30, 150, 20).build());
+        }).bounds(this.width / 2 - 155, this.height / 2 + 30, 150, 20).build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.translatable("button.spmega.qr.open_link"), button -> {
+        this.addRenderableWidget(Button.builder(Component.translatable("button.spmega.qr.open_link"), button -> {
             try {
-                Util.getOperatingSystem().open(new URI(url));
+                Util.getPlatform().openUri(new URI(url));
             } catch (Exception exception) {
-                if (this.client != null && this.client.player != null) {
-                    this.client.player.sendMessage(Text.translatable("message.spmega.qr.failed_open"), false);
+                if (this.minecraft != null && this.minecraft.player != null) {
+                    /*? if mc_26 {*/
+                     this.minecraft.player.sendSystemMessage(Component.translatable("message.spmega.qr.failed_open"));
+                    /*?} else {*/
+                    /*this.minecraft.player.displayClientMessage(Component.translatable("message.spmega.qr.failed_open"), false);
+                    *//*?}*/
                 }
             }
-            if (this.client != null) {
-                this.client.setScreen(parent);
+            if (this.minecraft != null) {
+                this.minecraft.gui.setScreen(parent);
             }
-        }).dimensions(this.width / 2 + 5, this.height / 2 + 30, 150, 20).build());
+        }).bounds(this.width / 2 + 5, this.height / 2 + 30, 150, 20).build());
     }
 
     @Override
-    public void close() {
-        if (this.client != null) {
-            this.client.setScreen(parent);
+    public void onClose() {
+        if (this.minecraft != null) {
+            this.minecraft.gui.setScreen(parent);
         }
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.render(context, mouseX, mouseY, delta);
+    /*? if mc_26 {*/
+     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+    /*?} else {*/
+    /*public void render(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+    *//*?}*/
+        /*? if mc_26 {*/
+         super.extractRenderState(context, mouseX, mouseY, delta);
+        /*?} else {*/
+        /*super.render(context, mouseX, mouseY, delta);
+        *//*?}*/
 
-        context.drawCenteredTextWithShadow(
-                this.textRenderer,
-                Text.literal("Найдена ссылка: " + url),
+        context.centeredText(
+                this.font,
+                Component.literal("Найдена ссылка: " + url),
                 this.width / 2,
                 this.height / 2,
                 Color.WHITE.getRGB()
         );
     }
 }
-

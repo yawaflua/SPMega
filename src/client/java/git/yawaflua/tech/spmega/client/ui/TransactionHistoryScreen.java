@@ -3,15 +3,14 @@ package git.yawaflua.tech.spmega.client.ui;
 import git.yawaflua.tech.spmega.client.ui.service.BackendAuthenticator;
 import git.yawaflua.tech.spmega.client.ui.service.BankDatabase.LocalTransaction;
 import git.yawaflua.tech.spmega.client.ui.service.BankUiService;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 public class TransactionHistoryScreen extends Screen {
     private final Screen parent;
@@ -24,7 +23,7 @@ public class TransactionHistoryScreen extends Screen {
     private int currentPage = 1;
 
     public TransactionHistoryScreen(Screen parent, String cardId, String cardTitle) {
-        super(Text.literal("История транзакций"));
+        super(Component.literal("История транзакций"));
         this.parent = parent;
         this.cardId = cardId;
         this.cardTitle = cardTitle;
@@ -35,34 +34,34 @@ public class TransactionHistoryScreen extends Screen {
         int centerX = this.width / 2;
         int startY = this.height / 2 + 50;
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Назад"), button -> this.close())
-                .dimensions(centerX - 60, startY + 10, 120, 20)
+        this.addRenderableWidget(Button.builder(Component.literal("Назад"), button -> this.onClose())
+                .bounds(centerX - 60, startY + 10, 120, 20)
                 .build());
 
         // Scroll Up/Down buttons
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("▲"), button -> scrollUp())
-                .dimensions(centerX + 140, 65, 20, 20)
+        this.addRenderableWidget(Button.builder(Component.literal("▲"), button -> scrollUp())
+                .bounds(centerX + 140, 65, 20, 20)
                 .build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("▼"), button -> scrollDown())
-                .dimensions(centerX + 140, 155, 20, 20)
+        this.addRenderableWidget(Button.builder(Component.literal("▼"), button -> scrollDown())
+                .bounds(centerX + 140, 155, 20, 20)
                 .build());
 
         // Prev Page button
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("<"), button -> {
+        this.addRenderableWidget(Button.builder(Component.literal("<"), button -> {
             if (currentPage > 1) {
                 currentPage--;
                 scrollOffset = 0;
                 loadTransactions();
             }
-        }).dimensions(centerX - 100, startY - 15, 30, 20).build());
+        }).bounds(centerX - 100, startY - 15, 30, 20).build());
 
         // Next Page button
-        this.addDrawableChild(ButtonWidget.builder(Text.literal(">"), button -> {
+        this.addRenderableWidget(Button.builder(Component.literal(">"), button -> {
             currentPage++;
             scrollOffset = 0;
             loadTransactions();
-        }).dimensions(centerX + 70, startY - 15, 30, 20).build());
+        }).bounds(centerX + 70, startY - 15, 30, 20).build());
 
         loadTransactions();
     }
@@ -105,7 +104,7 @@ public class TransactionHistoryScreen extends Screen {
         errorMessage = "";
         transactions.clear();
 
-        UiNotifications.instance().show(Text.literal("Загрузка..."));
+        UiNotifications.instance().show(Component.literal("Загрузка..."));
 
         int page = currentPage;
         System.out.println("[SPMEGA] Transaction history loading started for card: " + cardId + ", page: " + page);
@@ -132,7 +131,7 @@ public class TransactionHistoryScreen extends Screen {
                     return local;
                 })
                 .whenComplete((list, exception) -> {
-                    MinecraftClient minecraftClient = MinecraftClient.getInstance();
+                    Minecraft minecraftClient = Minecraft.getInstance();
                     if (minecraftClient == null) {
                         System.out.println("[SPMEGA] MinecraftClient.getInstance() is null in loadTransactions callback!");
                         return;
@@ -151,30 +150,38 @@ public class TransactionHistoryScreen extends Screen {
     }
 
     @Override
-    public void close() {
-        if (this.client != null) {
-            this.client.setScreen(parent);
+    public void onClose() {
+        if (this.minecraft != null) {
+            this.minecraft.gui.setScreen(parent);
         }
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.render(context, mouseX, mouseY, delta);
+    /*? if mc_26 {*/
+     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+    /*?} else {*/
+    /*public void render(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+    *//*?}*/
+        /*? if mc_26 {*/
+         super.extractRenderState(context, mouseX, mouseY, delta);
+        /*?} else {*/
+        /*super.render(context, mouseX, mouseY, delta);
+        *//*?}*/
 
         int centerX = this.width / 2;
         int startY = 50;
         int bottomStartY = this.height / 2 + 50;
 
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, 20, 0xFFFFFFFF);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Карта: " + cardTitle), centerX, 35, 0xFFBFBFBF);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Стр. " + currentPage), centerX, bottomStartY - 9, 0xFFFFFFFF);
+        context.centeredText(this.font, this.title, centerX, 20, 0xFFFFFFFF);
+        context.centeredText(this.font, Component.literal("Карта: " + cardTitle), centerX, 35, 0xFFBFBFBF);
+        context.centeredText(this.font, Component.literal("Стр. " + currentPage), centerX, bottomStartY - 9, 0xFFFFFFFF);
 
         if (loading) {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Загрузка транзакций..."), centerX, this.height / 2 - 10, 0xFFCCCCCC);
+            context.centeredText(this.font, Component.literal("Загрузка транзакций..."), centerX, this.height / 2 - 10, 0xFFCCCCCC);
         } else if (!errorMessage.isEmpty()) {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Ошибка: " + errorMessage), centerX, this.height / 2 - 10, 0xFFFF5555);
+            context.centeredText(this.font, Component.literal("Ошибка: " + errorMessage), centerX, this.height / 2 - 10, 0xFFFF5555);
         } else if (transactions.isEmpty()) {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Транзакций не найдено"), centerX, this.height / 2 - 10, 0xFFCCCCCC);
+            context.centeredText(this.font, Component.literal("Транзакций не найдено"), centerX, this.height / 2 - 10, 0xFFCCCCCC);
         } else {
             int y = startY + 15;
             int limit = Math.min(6, transactions.size() - scrollOffset);
@@ -196,7 +203,7 @@ public class TransactionHistoryScreen extends Screen {
                 String status = tx.status();
                 int color = (status != null && status.equalsIgnoreCase("SUCCESS")) ? 0xFF55FF55 : 0xFFFF5555;
 
-                context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(line), centerX, y, color);
+                context.centeredText(this.font, Component.literal(line), centerX, y, color);
                 y += 18;
             }
         }

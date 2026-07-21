@@ -3,7 +3,7 @@ package git.yawaflua.tech.spmega;
 import net.fabricmc.api.ModInitializer;
 
 public class SPMega implements ModInitializer {
-    private static ModConfig config;
+    private static volatile ModConfig config;
 
     public static ModConfig getConfig() {
         return config;

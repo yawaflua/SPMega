@@ -15,8 +15,8 @@
   ],
   "contact": {
     "homepage": "https://yawaflua.tech",
-    "issues": "https://git.yawaflua.tech/spmega",
-    "sources": "https://git.yawaflua.tech/spmega"
+    "issues": "https://github.com/yawaflua/SPMega",
+    "sources": "https://github.com/yawaflua/SPMega"
   },
   "license": "CC BY-NC-ND 4.0",
   "icon": "icon.png",
@@ -45,7 +45,8 @@
   "depends": {
     "fabricloader": ">=${loader_version}",
     "fabric-api": "*",
-    "minecraft": "${minecraft_version}"
+    "minecraft": "${minecraft_version}",
+    "java": ">=${java_version}"
   },
   "suggests": {
     "cloth-config2": ">=${cloth_config_version}"

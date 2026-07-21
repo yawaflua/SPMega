@@ -4,12 +4,6 @@ import com.google.gson.Gson;
 import git.yawaflua.tech.spmega.GpsHudPosition;
 import git.yawaflua.tech.spmega.SPMega;
 import git.yawaflua.tech.spmega.client.telemetry.InstrumentedHttpClient;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
-import net.minecraft.world.World;
-
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.util.ArrayList;
@@ -17,6 +11,11 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.level.Level;
 
 public final class GpsHudRenderer {
     private static final GpsHudRenderer INSTANCE = new GpsHudRenderer();
@@ -80,17 +79,17 @@ public final class GpsHudRenderer {
                 .exceptionally(ignored -> null);
     }
 
-    public void render(DrawContext context, TextRenderer textRenderer, int width, int height) {
+    public void render(GuiGraphicsExtractor context, Font textRenderer, int width, int height) {
         if (!enabled) {
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null || client.player == null) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.level == null || client.player == null) {
             return;
         }
 
-        if (client.world.getRegistryKey() != World.NETHER) {
+        if (client.level.dimension() != Level.NETHER) {
             return;
         }
 
@@ -124,14 +123,14 @@ public final class GpsHudRenderer {
 
         int padding = 6;
         int lineSpacing = 2;
-        int textWidth = Math.max(textRenderer.getWidth(Text.literal(titleText)), textRenderer.getWidth(Text.literal(offsetText)));
+        int textWidth = Math.max(textRenderer.width(Component.literal(titleText)), textRenderer.width(Component.literal(offsetText)));
         if (cityText != null) {
-            textWidth = Math.max(textWidth, textRenderer.getWidth(Text.literal(cityText)));
+            textWidth = Math.max(textWidth, textRenderer.width(Component.literal(cityText)));
         }
 
         int boxWidth = textWidth + padding * 2 + 6;
         int linesCount = cityText != null ? 3 : 2;
-        int boxHeight = textRenderer.fontHeight * linesCount + lineSpacing * (linesCount - 1) + padding * 2;
+        int boxHeight = textRenderer.lineHeight * linesCount + lineSpacing * (linesCount - 1) + padding * 2;
 
         GpsHudPosition position = GpsHudPosition.TOP_CENTER;
         if (SPMega.getConfig() != null) {
@@ -177,10 +176,10 @@ public final class GpsHudRenderer {
 
         int textX = boxX + padding + barWidth + 4;
         int textY = boxY + padding;
-        context.drawTextWithShadow(textRenderer, Text.literal(titleText), textX, textY, 0xFFFFFFFF);
-        context.drawTextWithShadow(textRenderer, Text.literal(offsetText), textX, textY + textRenderer.fontHeight + lineSpacing, 0xFFFFFFFF);
+        context.text(textRenderer, Component.literal(titleText), textX, textY, 0xFFFFFFFF);
+        context.text(textRenderer, Component.literal(offsetText), textX, textY + textRenderer.lineHeight + lineSpacing, 0xFFFFFFFF);
         if (cityText != null) {
-            context.drawTextWithShadow(textRenderer, Text.literal(cityText), textX, textY + (textRenderer.fontHeight + lineSpacing) * 2, 0xFFFFFFFF);
+            context.text(textRenderer, Component.literal(cityText), textX, textY + (textRenderer.lineHeight + lineSpacing) * 2, 0xFFFFFFFF);
         }
     }
 

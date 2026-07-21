@@ -1,6 +1,7 @@
 package git.yawaflua.tech.spmega.client.telemetry;
 
 import com.google.gson.JsonObject;
+import git.yawaflua.tech.spmega.client.ui.service.BackendAuthenticator;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -53,6 +54,12 @@ public record InstrumentedHttpClient(HttpClient delegate) {
                     } else {
                         recordHttpEvent(uri, method, response.statusCode(), durationMs,
                                 true, null, fpsBefore, fpsAfter);
+                        if (response.statusCode() == 401
+                                && response.headers().firstValue("X-SPMega-Reauthenticate")
+                                .map("true"::equalsIgnoreCase)
+                                .orElse(false)) {
+                            BackendAuthenticator.onReauthenticationRequired();
+                        }
                     }
                 });
     }

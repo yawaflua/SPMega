@@ -6,9 +6,7 @@ import git.yawaflua.tech.spmega.client.api.SPWorldsApiClient;
 import git.yawaflua.tech.spmega.client.telemetry.TelemetryCollector;
 import git.yawaflua.tech.spmega.client.telemetry.TelemetryEvent;
 import net.fabricmc.loader.api.FabricLoader;
-
-import net.minecraft.client.MinecraftClient;
-
+import net.minecraft.client.Minecraft;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
@@ -59,8 +57,8 @@ public final class BankUiService {
     }
 
     private void runOnMainThread(Runnable runnable) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.isOnThread()) {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.isSameThread()) {
             runnable.run();
         } else {
             client.execute(runnable);

@@ -3,10 +3,9 @@ package git.yawaflua.tech.spmega.client;
 import git.yawaflua.tech.spmega.client.ui.UiNotifications;
 import git.yawaflua.tech.spmega.client.ui.service.BankUiService;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.Text;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -38,7 +37,7 @@ public class ChatListener {
         });
     }
 
-    private void handleMessage(Text message) {
+    private void handleMessage(Component message) {
         if (message == null) {
             return;
         }
@@ -52,9 +51,9 @@ public class ChatListener {
                 String tokenId = clickValues.get(0);
                 String cardId = clickValues.get(1);
 
-                MinecraftClient client = MinecraftClient.getInstance();
+                Minecraft client = Minecraft.getInstance();
                 if (client.player != null) {
-                    String playerUuid = client.player.getUuidAsString();
+                    String playerUuid = client.player.getStringUUID();
 
                     BankUiService.instance().addCardAsync(cardId, tokenId, playerUuid)
                             .thenAccept(msg -> {
@@ -68,7 +67,7 @@ public class ChatListener {
                             .exceptionally(exception -> {
                                 if (client != null) {
                                     client.execute(() -> {
-                                        notifications.show(Text.literal("Ошибка добавления карты: " + exception.getMessage()));
+                                        notifications.show(Component.literal("Ошибка добавления карты: " + exception.getMessage()));
                                     });
                                 }
                                 return null;
@@ -80,7 +79,7 @@ public class ChatListener {
         }
     }
 
-    private void collectClickEventValues(Text text, List<String> values) {
+    private void collectClickEventValues(Component text, List<String> values) {
         if (text == null) {
             return;
         }
@@ -98,12 +97,13 @@ public class ChatListener {
             }
         }
 
-        for (Text sibling : text.getSiblings()) {
+        for (Component sibling : text.getSiblings()) {
             collectClickEventValues(sibling, values);
         }
     }
 
     private String getEventValue(ClickEvent clickEvent) {
+        /*? if mc_1_21_11 {*/
         if (clickEvent instanceof ClickEvent.CopyToClipboard(String value)) {
             return value;
         } else if (clickEvent instanceof ClickEvent.RunCommand(String command1)) {
@@ -118,5 +118,8 @@ public class ChatListener {
             return String.valueOf(page);
         }
         return "";
+        /*?} else {*/
+        // return clickEvent.getValue();
+        /*?}*/
     }
 }

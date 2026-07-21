@@ -1,7 +1,6 @@
 package git.yawaflua.tech.spmega.client.telemetry;
 
 import com.google.gson.JsonObject;
-import net.minecraft.client.MinecraftClient;
 import org.lwjgl.opengl.GL11;
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
@@ -16,6 +15,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
+import net.minecraft.client.Minecraft;
 
 public final class SystemInfoCollector {
     private static final SystemInfoCollector INSTANCE = new SystemInfoCollector();
@@ -58,7 +58,7 @@ public final class SystemInfoCollector {
     }
 
     private void collectGpuOnRenderThread() {
-        MinecraftClient.getInstance().execute(() -> {
+        Minecraft.getInstance().execute(() -> {
             try {
                 gpuRenderer.set(GL11.glGetString(GL11.GL_RENDERER));
                 gpuVendor.set(GL11.glGetString(GL11.GL_VENDOR));

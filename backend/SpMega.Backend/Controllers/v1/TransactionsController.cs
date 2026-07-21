@@ -65,10 +65,6 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
          return BadRequest(new { error = "Card not found" });
       }
 
-      if (cardToUse.Balance != -1 && cardToUse.Balance < body.amount)
-      {
-         return BadRequest(new { error = "Insufficient balance" });
-      }
 
       
       var shortId = Program.GenerateRandomString(2);
@@ -110,8 +106,6 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
          {
             throw new Exception("Failed to create transaction: " + resp);
          }
-         cardToUse.Balance = balance.Value;
-         
 
       } catch (Exception exception)
       {

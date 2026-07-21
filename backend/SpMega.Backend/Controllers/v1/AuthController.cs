@@ -128,6 +128,35 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
 
     }
 
+    [HttpPost("refresh")]
+    [Authorize]
+    public async Task<IActionResult> RefreshAccessTokenAsync()
+    {
+        if (HttpContext.Items[TokenService.HttpContextItemKey] is not ValidatedAccessToken accessToken ||
+            HttpContext.Items["@me"] is not User user)
+        {
+            return Unauthorized(new { code = "reauthentication_required" });
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (accessToken.ExpiresAt - now > TokenService.RefreshThreshold)
+        {
+            return Ok(new { refreshed = false, expiresAt = accessToken.ExpiresAt });
+        }
+
+        if (accessToken.AuthenticatedAt.Add(TokenService.MaximumAuthenticationAge) - now <= TokenService.RefreshThreshold)
+        {
+            return Unauthorized(new { code = "reauthentication_required" });
+        }
+
+        var token = tokenService.GenerateAccessToken(user.Username, user.Id, accessToken.AuthenticatedAt);
+        user.Token = token;
+        user.UpdatedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync();
+
+        return Ok(new { refreshed = true, token });
+    }
+
     [HttpPut("cards")]
     [Authorize]
     public async Task<IActionResult> AddCardAsync([FromBody] AddCardBody body)
@@ -145,11 +174,6 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
                 throw new Exception("Its not ur card");
             }
             
-            var balanceResp = await SendRequest("/public/card", new("Bearer", Base64BearerToken));
-            var balance = (int?)JsonNode.Parse(balanceResp)?["balance"];
-            
-            
-
             var card = me.cards.First(k => k.id == body.id);
             var existingCard = user.Cards.FirstOrDefault(k => k.Id.ToString() == card.id);
             if (existingCard == null)
@@ -157,7 +181,6 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
                 {
                     Id =  Guid.Parse(card.id),
                     Name = card.name,
-                    Balance = balance ?? -1,
                     SpworldsID = card.number,
                     Token = Base64BearerToken,
                     CreatedAt = DateTime.UtcNow,
@@ -168,7 +191,6 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
                 existingCard.Name = card.name;
                 existingCard.SpworldsID = card.number;
                 existingCard.Token = Base64BearerToken;
-                existingCard.Balance = balance ?? -1;
                 existingCard.UpdatedAt = DateTime.UtcNow;
                 
             }
@@ -236,4 +258,3 @@ public class AuthController(AppDbContext dbContext, TokenService tokenService, I
 }
 
 public record AddCardBody(string id, string token);
-

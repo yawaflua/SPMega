@@ -1,10 +1,9 @@
 package git.yawaflua.tech.spmega.client.telemetry;
 
 import com.google.gson.JsonObject;
-import net.minecraft.client.MinecraftClient;
-
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import net.minecraft.client.Minecraft;
 
 public final class PerformanceSampler {
     private static final PerformanceSampler INSTANCE = new PerformanceSampler();
@@ -23,7 +22,7 @@ public final class PerformanceSampler {
     }
 
     public void tick() {
-        int fps = MinecraftClient.getInstance().getCurrentFps();
+        int fps = Minecraft.getInstance().getFps();
         fpsSum.addAndGet(fps);
         fpsCount.incrementAndGet();
         fpsMin.updateAndGet(prev -> Math.min(prev, fps));
@@ -31,7 +30,7 @@ public final class PerformanceSampler {
     }
 
     public int currentFps() {
-        return MinecraftClient.getInstance().getCurrentFps();
+        return Minecraft.getInstance().getFps();
     }
 
     public void emitSnapshot() {

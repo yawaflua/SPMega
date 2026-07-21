@@ -8,9 +8,7 @@ import com.mojang.authlib.minecraft.MinecraftSessionService;
 import git.yawaflua.tech.spmega.ModConfig;
 import git.yawaflua.tech.spmega.SPMega;
 import git.yawaflua.tech.spmega.client.telemetry.InstrumentedHttpClient;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.session.Session;
-
+import git.yawaflua.tech.spmega.client.ui.UiNotifications;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
@@ -20,32 +18,134 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.User;
 
 public final class BackendAuthenticator {
+    private static final long TOKEN_CHECK_INTERVAL_MILLIS = 60L * 60L * 1000L;
+    private static final AtomicBoolean tokenMaintenanceRunning = new AtomicBoolean();
+    private static volatile long nextTokenCheckMillis;
+    private static CompletableFuture<Boolean> activeReauthentication;
 
     private BackendAuthenticator() {
     }
 
-    public static CompletableFuture<Boolean> authenticateAsync(MinecraftClient client) {
-        Session session = client.getSession();
-        if (session == null || session.getUuidOrNull() == null) {
+    public static void tickTokenRefresh(Minecraft client) {
+        long now = System.currentTimeMillis();
+        if (now < nextTokenCheckMillis || !tokenMaintenanceRunning.compareAndSet(false, true)) {
+            return;
+        }
+
+        nextTokenCheckMillis = now + TOKEN_CHECK_INTERVAL_MILLIS;
+        maintainTokenAsync(client).whenComplete((ignored, throwable) -> {
+            tokenMaintenanceRunning.set(false);
+            if (throwable != null) {
+                Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
+                System.err.println("[SPMEGA] Token maintenance failed: " + cause.getMessage());
+            }
+        });
+    }
+
+    private static CompletableFuture<Boolean> maintainTokenAsync(Minecraft client) {
+        ModConfig config = SPMega.getConfig();
+        if (config == null || !config.allowBackend()) {
+            return CompletableFuture.completedFuture(false);
+        }
+
+        if (config.apiToken() == null || config.apiToken().isBlank()
+                || ModConfig.DEFAULT_API_TOKEN.equals(config.apiToken())) {
+            return reauthenticateAsync(client);
+        }
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(backendUrl(config, "/api/v1/auth/refresh")))
+                .header("Accept", "application/json")
+                .header("Authorization", "Bearer " + config.apiToken())
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        return new InstrumentedHttpClient().sendAsync(request).thenCompose(response -> {
+            if (response.statusCode() == 401) {
+                return reauthenticateAsync(client);
+            }
+            if (response.statusCode() != 200) {
+                throw new CompletionException(new IOException(
+                        "Refresh endpoint returned status " + response.statusCode() + ": " + response.body()));
+            }
+
+            JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+            if (json.has("refreshed") && json.get("refreshed").getAsBoolean()) {
+                if (!json.has("token") || json.get("token").isJsonNull()) {
+                    throw new CompletionException(new IOException("Refresh endpoint did not return a token."));
+                }
+                saveToken(json.get("token").getAsString());
+                System.out.println("[SPMEGA] Backend access token refreshed.");
+            }
+            return CompletableFuture.completedFuture(true);
+        });
+    }
+
+    public static void onReauthenticationRequired() {
+        ModConfig config = SPMega.getConfig();
+        if (config == null || !config.allowBackend()) {
+            return;
+        }
+        reauthenticateAsync(Minecraft.getInstance()).exceptionally(throwable -> {
+            Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
+            System.err.println("[SPMEGA] Reauthentication failed: " + cause.getMessage());
+            return false;
+        });
+    }
+
+    private static synchronized CompletableFuture<Boolean> reauthenticateAsync(Minecraft client) {
+        if (activeReauthentication != null && !activeReauthentication.isDone()) {
+            return activeReauthentication;
+        }
+
+        UiNotifications.instance().showMessage("Сессия SPMega устарела. Выполняется повторная авторизация…");
+        CompletableFuture<Boolean> reauthentication = authenticateAsync(client).thenApply(success -> {
+            if (success) {
+                UiNotifications.instance().showMessage("Авторизация SPMega обновлена.");
+            } else {
+                UiNotifications.instance().showMessage("Не удалось обновить авторизацию SPMega.");
+            }
+            return success;
+        });
+        activeReauthentication = reauthentication;
+        reauthentication.whenComplete((ignored, throwable) -> clearActiveReauthentication(reauthentication));
+        return reauthentication;
+    }
+
+    private static synchronized void clearActiveReauthentication(CompletableFuture<Boolean> completed) {
+        if (activeReauthentication == completed) {
+            activeReauthentication = null;
+        }
+    }
+
+    public static CompletableFuture<Boolean> authenticateAsync(Minecraft client) {
+        User session = client.getUser();
+        if (session == null || session.getProfileId() == null) {
             System.err.println("Cannot authenticate: Client has no valid session.");
             return CompletableFuture.completedFuture(false);
         }
 
-        MinecraftSessionService sessionService = client.getApiServices().sessionService();
-        return sendStartSessionRequestToBackendAsync(session.getUsername(), session.getUuidOrNull())
+        /*? if mc_1_21_11 {*/
+        MinecraftSessionService sessionService = client.services().sessionService();
+        /*?} else {*/
+        // MinecraftSessionService sessionService = client.getMinecraftSessionService();
+        /*?}*/
+        return sendStartSessionRequestToBackendAsync(session.getName(), session.getProfileId())
                 .thenCompose(serverId -> CompletableFuture.runAsync(() -> {
                             System.out.println("[SPMEGA] Trying to auth in mojang with serverId: " + serverId);
                             try {
-                                sessionService.joinServer(session.getUuidOrNull(), session.getAccessToken(), serverId);
+                                sessionService.joinServer(session.getProfileId(), session.getAccessToken(), serverId);
                             } catch (AuthenticationException exception) {
                                 throw new CompletionException(exception);
                             }
                         })
                         .thenCompose(ignored -> {
                             System.out.println("[SPMEGA] Sending session submitter to backend");
-                            return sendAuthRequestToBackendAsync(session.getUuidOrNull(), serverId);
+                            return sendAuthRequestToBackendAsync(session.getProfileId(), serverId);
                         }))
                 .exceptionally(throwable -> {
                     Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
@@ -138,14 +238,21 @@ public final class BackendAuthenticator {
                 throw new CompletionException(new IOException("Config is null, cannot save token."));
             }
 
-            String token = json.get("token").getAsString();
-            SPMega.setConfig(new ModConfig(
-                    config.apiDomain(), token, config.allowBackend(), config.signQuickPayEnabled(),
-                    config.gpsEnabled(), config.gpsPosition(), config.notificationPosition(),
-                    config.telemetryIntervalSeconds(), config.telemetryCollectSystemInfo()));
+            saveToken(json.get("token").getAsString());
             System.out.println("[SPMEGA] Backend auth successful, saved token.");
             return true;
         });
+    }
+
+    private static void saveToken(String token) {
+        ModConfig current = SPMega.getConfig();
+        if (current == null) {
+            throw new CompletionException(new IOException("Config is null, cannot save token."));
+        }
+        SPMega.setConfig(new ModConfig(
+                current.apiDomain(), token, current.allowBackend(), current.signQuickPayEnabled(),
+                current.gpsEnabled(), current.gpsPosition(), current.notificationPosition(),
+                current.telemetryIntervalSeconds(), current.telemetryCollectSystemInfo()));
     }
 
     public static void sendCardToBackend(String cardId, String cardToken) {

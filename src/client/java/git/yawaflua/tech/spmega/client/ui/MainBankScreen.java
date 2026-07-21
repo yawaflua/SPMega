@@ -1,19 +1,18 @@
 package git.yawaflua.tech.spmega.client.ui;
 
 import git.yawaflua.tech.spmega.client.qr.QRCodeScanner;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
-
 import java.awt.*;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 public class MainBankScreen extends Screen {
     private final Screen parent;
 
     public MainBankScreen(Screen parent) {
-        super(Text.literal("SPMega"));
+        super(Component.literal("SPMega"));
         this.parent = parent;
     }
 
@@ -26,52 +25,60 @@ public class MainBankScreen extends Screen {
         int totalWidth = buttonWidth * 3 + gap * 2;
         int startX = centerX - totalWidth / 2;
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Карта"), button -> {
-            this.client.setScreen(new CardScreen(this));
-        }).dimensions(startX, y, buttonWidth, 20).build());
+        this.addRenderableWidget(Button.builder(Component.literal("Карта"), button -> {
+            this.minecraft.gui.setScreen(new CardScreen(this));
+        }).bounds(startX, y, buttonWidth, 20).build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Оплата"), button -> {
-            this.client.setScreen(new PaymentScreen(this));
-        }).dimensions(startX + buttonWidth + gap, y, buttonWidth, 20).build());
+        this.addRenderableWidget(Button.builder(Component.literal("Оплата"), button -> {
+            this.minecraft.gui.setScreen(new PaymentScreen(this));
+        }).bounds(startX + buttonWidth + gap, y, buttonWidth, 20).build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Закрыть"), button -> this.close())
-                .dimensions(startX + (buttonWidth + gap) * 2, y, buttonWidth, 20)
+        this.addRenderableWidget(Button.builder(Component.literal("Закрыть"), button -> this.onClose())
+                .bounds(startX + (buttonWidth + gap) * 2, y, buttonWidth, 20)
                 .build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.translatable("button.spmega.scan_qr"), button -> {
-            this.client.setScreen(null);
-            QRCodeScanner.scanQrCode(this.client);
-        }).dimensions(centerX - 60, y + 28, 120, 20).build());
+        this.addRenderableWidget(Button.builder(Component.translatable("button.spmega.scan_qr"), button -> {
+            this.minecraft.gui.setScreen(null);
+            QRCodeScanner.scanQrCode(this.minecraft);
+        }).bounds(centerX - 60, y + 28, 120, 20).build());
     }
 
     @Override
-    public void close() {
-        if (this.client != null) {
-            this.client.setScreen(parent);
+    public void onClose() {
+        if (this.minecraft != null) {
+            this.minecraft.gui.setScreen(parent);
         }
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.render(context, mouseX, mouseY, delta);
+    /*? if mc_26 {*/
+     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+    /*?} else {*/
+    /*public void render(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+    *//*?}*/
+        /*? if mc_26 {*/
+         super.extractRenderState(context, mouseX, mouseY, delta);
+        /*?} else {*/
+        /*super.render(context, mouseX, mouseY, delta);
+        *//*?}*/
 
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 24, 0xFFFFFF);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(greetingLine()), this.width / 2, 48, Color.WHITE.getRGB());
+        context.centeredText(this.font, this.title, this.width / 2, 24, 0xFFFFFF);
+        context.centeredText(this.font, Component.literal(greetingLine()), this.width / 2, 48, Color.WHITE.getRGB());
     }
 
     private String greetingLine() {
-        MinecraftClient minecraftClient = MinecraftClient.getInstance();
-        String username = minecraftClient.getSession().getUsername();
+        Minecraft minecraftClient = Minecraft.getInstance();
+        String username = minecraftClient.getUser().getName();
         return "Доброе " + getTimeOfDay() + ", " + username;
     }
 
     private String getTimeOfDay() {
-        MinecraftClient minecraftClient = MinecraftClient.getInstance();
-        if (minecraftClient.world == null) {
+        Minecraft minecraftClient = Minecraft.getInstance();
+        if (minecraftClient.level == null) {
             return "время суток";
         }
 
-        long dayTime = minecraftClient.world.getTimeOfDay() % 24000L;
+        long dayTime = minecraftClient.level.getOverworldClockTime() % 24000L;
         if (dayTime < 6000) {
             return "утро";
         }

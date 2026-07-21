@@ -32,11 +32,62 @@ SPMega - клиентский Fabric-мод с банковым UI для раб
   `Вы не владелец карты. Часть функций может быть ограничена.`
   ###### позже это станет ограничением для синхронизации карт/истории с облаком
 
-## Сборка (PowerShell)
+## Поддерживаемые версии
+
+- Minecraft 1.21.1 (Java 21)
+- Minecraft 1.21.11 (Java 21)
+- Minecraft 26.1.x (сборка на 26.1.2, Java 25)
+- Minecraft 26.2.x (сборка на 26.2, Java 25)
+
+Версии собираются из общего дерева исходников через Stonecutter. Зависимости
+для каждой версии находятся в `stonecutter.properties.toml`, а условные участки
+исходников помечены директивами `/*? ... */`.
+
+## Сборка
+
+Все поддерживаемые версии:
+
+```bash
+./gradlew buildAndCollect
+```
+
+Готовые JAR-файлы появятся в `build/libs/<версия-мода>/`.
+
+Одна версия:
+
+```bash
+./gradlew :1.21.1:build
+./gradlew :26.2.x:build
+```
+
+PowerShell:
 
 ```powershell
-.\gradlew.bat build
+.\gradlew.bat buildAndCollect
 ```
+
+## Публикация на Modrinth
+
+Один универсальный JAR для этих версий использовать нельзя: сборки 1.21.x и
+26.x имеют несовместимые Minecraft/Fabric API. Вместо ручной загрузки четырёх
+файлов Gradle создаёт отдельную запись Modrinth для каждой версии:
+
+```bash
+export MODRINTH_TOKEN="ваш-токен"
+export MODRINTH_PROJECT_ID="id-или-slug-проекта"
+./gradlew modrinth
+```
+
+В PowerShell:
+
+```powershell
+$env:MODRINTH_TOKEN="ваш-токен"
+$env:MODRINTH_PROJECT_ID="id-или-slug-проекта"
+.\gradlew.bat modrinth
+```
+
+Тип релиза задаётся свойством `modrinth_version_type` в `gradle.properties`:
+`release`, `beta` или `alpha`.
 
 ## Дорожная карта
 

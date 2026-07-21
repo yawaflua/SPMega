@@ -3,13 +3,12 @@ package git.yawaflua.tech.spmega.client;
 import git.yawaflua.tech.spmega.client.ui.UiNotifications;
 import git.yawaflua.tech.spmega.client.ui.service.BackendAuthenticator;
 import git.yawaflua.tech.spmega.client.ui.service.BankUiService;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
-
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 public final class WebhookNotificationPoller {
     private static final WebhookNotificationPoller INSTANCE = new WebhookNotificationPoller();
@@ -61,12 +60,12 @@ public final class WebhookNotificationPoller {
                 System.err.println("[SPMEGA] Failed to poll webhook notifications: " + exception.getMessage());
                 return;
             }
-            MinecraftClient client = MinecraftClient.getInstance();
+            Minecraft client = Minecraft.getInstance();
             if (client == null || notifications.isEmpty()) {
                 return;
             }
             client.execute(() -> notifications.forEach(notification ->
-                    UiNotifications.instance().showQueued(Text.literal(format(notification)))));
+                    UiNotifications.instance().showQueued(Component.literal(format(notification)))));
         });
     }
 }

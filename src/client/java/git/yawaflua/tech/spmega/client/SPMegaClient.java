@@ -1,5 +1,6 @@
 package git.yawaflua.tech.spmega.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import git.yawaflua.tech.spmega.ModConfig;
 import git.yawaflua.tech.spmega.SPMega;
 import git.yawaflua.tech.spmega.client.qr.QRCodeScanner;
@@ -11,20 +12,24 @@ import git.yawaflua.tech.spmega.client.ui.service.BackendAuthenticator;
 import git.yawaflua.tech.spmega.client.ui.service.BankUiService;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+/*? if mc_26 {*/
+ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+ import net.minecraft.resources.Identifier;
+/*?} else {*/
+/*import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+*//*?}*/
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
-import net.minecraft.block.entity.SignBlockEntity;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.entity.decoration.ItemFrameEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.ActionResult;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.decoration.ItemFrame;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.block.entity.SignBlockEntity;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.regex.Matcher;
@@ -32,9 +37,9 @@ import java.util.regex.Pattern;
 
 public class SPMegaClient implements ClientModInitializer {
     private static final Pattern ISOLATED_FIVE_DIGITS = Pattern.compile("(?<!\\d)(\\d{5})(?!\\d)");
-    private static KeyBinding openBankMenuKeyBinding;
-    private static KeyBinding scanQrKeyBinding;
-    private static KeyBinding toggleGpsKeyBinding;
+    private static KeyMapping openBankMenuKeyBinding;
+    private static KeyMapping scanQrKeyBinding;
+    private static KeyMapping toggleGpsKeyBinding;
     private static boolean wasPaymentShortcutPressed = false;
 
 
@@ -46,15 +51,15 @@ public class SPMegaClient implements ClientModInitializer {
         return findFiveDigits(signBlockEntity.getBackText().getMessages(false));
     }
 
-    private static String extractCardNumber(ItemFrameEntity itemFrameEntity) {
-        if (itemFrameEntity.getHeldItemStack().isEmpty()) {
+    private static String extractCardNumber(ItemFrame itemFrameEntity) {
+        if (itemFrameEntity.getItem().isEmpty()) {
             return null;
         }
-        return findFiveDigits(itemFrameEntity.getHeldItemStack().getName().getString());
+        return findFiveDigits(itemFrameEntity.getItem().getHoverName().getString());
     }
 
-    private static String findFiveDigits(Text[] lines) {
-        for (Text line : lines) {
+    private static String findFiveDigits(Component[] lines) {
+        for (Component line : lines) {
             String candidate = findFiveDigits(line.getString());
             if (candidate != null) {
                 return candidate;
@@ -74,25 +79,41 @@ public class SPMegaClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         GpsHudRenderer.instance();
-        openBankMenuKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+
+        UiNotifications.instance().showMessage("Этот мод собирает телеметрию. Проверьте настройки.");
+
+
+        openBankMenuKeyBinding = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spmega.open_menu",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_P,
-                KeyBinding.Category.GAMEPLAY
+                /*? if mc_1_21_11 {*/
+                KeyMapping.Category.GAMEPLAY
+                /*?} else {*/
+                // "key.categories.gameplay"
+                /*?}*/
         ));
 
-        scanQrKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        scanQrKeyBinding = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spmega.scan_qr",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_O,
-                KeyBinding.Category.GAMEPLAY
+                /*? if mc_1_21_11 {*/
+                KeyMapping.Category.GAMEPLAY
+                /*?} else {*/
+                // "key.categories.gameplay"
+                /*?}*/
         ));
 
-        toggleGpsKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        toggleGpsKeyBinding = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spmega.toggle_gps",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_J,
-                KeyBinding.Category.GAMEPLAY
+                /*? if mc_1_21_11 {*/
+                KeyMapping.Category.GAMEPLAY
+                /*?} else {*/
+                // "key.categories.gameplay"
+                /*?}*/
         ));
 
         if (SPMega.getConfig() != null) {
@@ -102,13 +123,14 @@ public class SPMegaClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             PerformanceSampler.instance().tick();
             UiNotifications.instance().tick();
-            while (openBankMenuKeyBinding.wasPressed()) {
+            BackendAuthenticator.tickTokenRefresh(client);
+            while (openBankMenuKeyBinding.consumeClick()) {
                 UiOpeners.openMainMenu(client);
             }
-            while (scanQrKeyBinding.wasPressed()) {
+            while (scanQrKeyBinding.consumeClick()) {
                 QRCodeScanner.scanQrCode(client);
             }
-            while (toggleGpsKeyBinding.wasPressed()) {
+            while (toggleGpsKeyBinding.consumeClick()) {
                 GpsHudRenderer.instance().toggle();
                 if (SPMega.getConfig() != null) {
                     ModConfig current = SPMega.getConfig();
@@ -126,15 +148,15 @@ public class SPMegaClient implements ClientModInitializer {
                     SPMega.setConfig(updated);
                 }
                 String status = GpsHudRenderer.instance().isEnabled() ? "включен" : "выключен";
-                UiNotifications.instance().show(Text.literal("GPS Ада " + status));
+                UiNotifications.instance().show(Component.literal("GPS Ада " + status));
             }
 
             if (client.player != null && client.options != null) {
-                boolean isCombinationPressed = client.options.sprintKey.isPressed() && client.options.sneakKey.isPressed() && client.options.leftKey.isPressed();
+                boolean isCombinationPressed = client.options.keySprint.isDown() && client.options.keyShift.isDown() && client.options.keyLeft.isDown();
                 if (isCombinationPressed) {
-                    if (!wasPaymentShortcutPressed && client.currentScreen == null) {
-                        if (client.targetedEntity instanceof PlayerEntity targetedPlayer && targetedPlayer != client.player) {
-                            String recipient = targetedPlayer.getStringifiedName();
+                    if (!wasPaymentShortcutPressed && client.gui.screen() == null) {
+                        if (client.crosshairPickEntity instanceof Player targetedPlayer && targetedPlayer != client.player) {
+                            String recipient = targetedPlayer.getScoreboardName();
                             UiOpeners.openPaymentMenu(client, recipient);
                         }
                     }
@@ -145,31 +167,35 @@ public class SPMegaClient implements ClientModInitializer {
             }
         });
 
-        HudRenderCallback.EVENT.register((drawContext, tickDeltaManager) -> {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client.currentScreen != null || client.textRenderer == null) {
+        /*? if mc_26 {*/
+         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("spmega", "main_hud"), (drawContext, tickDeltaManager) -> {
+        /*?} else {*/
+        /*HudRenderCallback.EVENT.register((drawContext, tickDeltaManager) -> {
+        *//*?}*/
+            Minecraft client = Minecraft.getInstance();
+            if (client.gui.screen() != null || client.font == null) {
                 return;
             }
             UiNotifications.instance().render(
                     drawContext,
-                    client.textRenderer,
-                    client.getWindow().getScaledWidth(),
-                    client.getWindow().getScaledHeight()
+                    client.font,
+                    client.getWindow().getGuiScaledWidth(),
+                    client.getWindow().getGuiScaledHeight()
             );
             GpsHudRenderer.instance().render(
                     drawContext,
-                    client.textRenderer,
-                    client.getWindow().getScaledWidth(),
-                    client.getWindow().getScaledHeight()
+                    client.font,
+                    client.getWindow().getGuiScaledWidth(),
+                    client.getWindow().getGuiScaledHeight()
             );
         });
 
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
-                    ScreenEvents.afterRender(screen).register((screenInstance, drawContext, mouseX, mouseY, tickDelta) -> {
-                        if (client.textRenderer == null) {
+                    ScreenEvents.afterExtract(screen).register((screenInstance, drawContext, mouseX, mouseY, tickDelta) -> {
+                        if (client.font == null) {
                             return;
                         }
-                        UiNotifications.instance().render(drawContext, client.textRenderer, scaledWidth, scaledHeight);
+                        UiNotifications.instance().render(drawContext, client.font, scaledWidth, scaledHeight);
                     });
 
                 }
@@ -177,66 +203,61 @@ public class SPMegaClient implements ClientModInitializer {
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             if (client.player != null) {
-                BankUiService.instance().refreshOnServerJoinAsync(client.player.getUuidAsString());
+                BankUiService.instance().refreshOnServerJoinAsync(client.player.getStringUUID());
             }
         });
 
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
-            if (!world.isClient()) {
-                return ActionResult.PASS;
+            if (!world.isClientSide()) {
+                return InteractionResult.PASS;
             }
-            if (!player.isSneaking()) {
-                return ActionResult.PASS;
+            if (!player.isShiftKeyDown()) {
+                return InteractionResult.PASS;
             }
             if (SPMega.getConfig() == null || !SPMega.getConfig().signQuickPayEnabled()) {
-                return ActionResult.PASS;
+                return InteractionResult.PASS;
             }
 
             if (world.getBlockEntity(hitResult.getBlockPos()) instanceof SignBlockEntity signBlockEntity) {
                 String cardNumber = extractCardNumber(signBlockEntity);
                 if (cardNumber == null) {
-                    return ActionResult.PASS;
+                    return InteractionResult.PASS;
                 }
 
-                UiOpeners.openPaymentMenu(MinecraftClient.getInstance(), cardNumber);
-                return ActionResult.SUCCESS;
+                UiOpeners.openPaymentMenu(Minecraft.getInstance(), cardNumber);
+                return InteractionResult.SUCCESS;
             } else {
-                return ActionResult.PASS;
+                return InteractionResult.PASS;
             }
 
         });
 
         UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
-            if (!world.isClient()) {
-                return ActionResult.PASS;
+            if (!world.isClientSide()) {
+                return InteractionResult.PASS;
             }
-            if (!player.isSneaking()) {
-                return ActionResult.PASS;
+            if (!player.isShiftKeyDown()) {
+                return InteractionResult.PASS;
             }
             if (SPMega.getConfig() == null || !SPMega.getConfig().signQuickPayEnabled()) {
-                return ActionResult.PASS;
+                return InteractionResult.PASS;
             }
-            if (entity instanceof ItemFrameEntity itemFrameEntity) {
+            if (entity instanceof ItemFrame itemFrameEntity) {
                 String cardNumber = extractCardNumber(itemFrameEntity);
                 if (cardNumber == null) {
-                    return ActionResult.PASS;
+                    return InteractionResult.PASS;
                 }
 
-                UiOpeners.openPaymentMenu(MinecraftClient.getInstance(), cardNumber);
-                return ActionResult.SUCCESS;
+                UiOpeners.openPaymentMenu(Minecraft.getInstance(), cardNumber);
+                return InteractionResult.SUCCESS;
             } else {
-                return ActionResult.PASS;
+                return InteractionResult.PASS;
             }
 
         });
 
         new ChatListener().register();
         WebhookNotificationPoller.instance().start();
-        BackendAuthenticator.authenticateAsync(MinecraftClient.getInstance())
-                .exceptionally(throwable -> {
-                    System.err.println("[SPMEGA] Error during async authenticate: " + throwable.getMessage());
-                    return null;
-                });
 
         // Telemetry init
         long clientInitStart = System.nanoTime();
