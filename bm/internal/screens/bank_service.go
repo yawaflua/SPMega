@@ -331,9 +331,6 @@ func (s *LocalBankService) fetchCard(ctx context.Context, id, token, playerUUID 
 		return CardViewModel{}, "", errors.New("карта не найдена в аккаунте SPWorlds")
 	}
 	card := CardViewModel{ID: id, Token: token, Number: number, Title: number + ": " + name, Balance: info.Balance, OwnerUUID: normalizeUUID(account.MinecraftUUID)}
-	if warnOwner && playerUUID != "" && normalizeUUID(playerUUID) != card.OwnerUUID {
-		return card, "Вы не владелец карты. Часть функций может быть ограничена.", nil
-	}
 	return card, "", nil
 }
 

@@ -332,14 +332,7 @@ public final class BankUiService {
 
             database.updateCardMeta(cardId, cardName, cardNumber, cardInfo.balance(), ownerUuid);
 
-            if (reportOwnerWarning && playerUuid != null && !playerUuid.isBlank()) {
-                String normalizedPlayerUuid = normalizeUuid(playerUuid);
-                if (!normalizedPlayerUuid.equals(ownerUuid)) {
-                    lastMessage = "Вы не владелец карты. Часть функций может быть ограничена.";
-                    return true;
-                }
-            }
-                    ModConfig config = SPMega.getConfig();
+            ModConfig config = SPMega.getConfig();
             if (config != null && config.allowBackend()) {
                 BackendAuthenticator.sendCardToBackend(cardId, cardToken);
             }
