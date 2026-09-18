@@ -94,11 +94,12 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
       try
       {
          var uri = "ywfl.dev" + "/s" + shortId;
+         var comment = string.IsNullOrWhiteSpace(body.comment) ? "Перевод через SPMega" : body.comment;
          var transitionInfo = new Dictionary<string, object>
          {
             { "receiver", body.receiverCard },
             { "amount", body.amount },
-            { "comment", (body.comment)[10..] + "..;Чек:"+ uri }
+            { "comment", comment + "..;Чек:"+ uri }
          };
          var resp = await SendRequest(endpoint: "transactions", body: transitionInfo, AuthHeader: new("Bearer", cardToUse.Token));
          var balance = (int?)JsonNode.Parse(resp)?["balance"];
@@ -134,8 +135,8 @@ public class TransactionsController(AppDbContext context, ILogger<TransactionsCo
    {
       return Ok(await context.Transactions
          .Where(k => EF.Property<Guid>(k, "SenderId") == ((User)HttpContext.Items["@me"]).Id)
-         .Skip(p - 1 * LIMIT)
-         .Take(p * LIMIT)
+         .Skip((Math.Max(p, 1) - 1) * LIMIT)
+         .Take(LIMIT)
          .ToListAsync());
    }
    

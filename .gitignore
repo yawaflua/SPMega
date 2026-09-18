@@ -25,3 +25,8 @@ backend/SpMega.Backend/obj/*
 backend/SpMega.Backend/appsettings.json
 backend/SpMega.Backend/appsettings.Development.json
 backend/SpMega.Backend/SpMega.Backend.http
+
+# Generated Stonecutter and Go native outputs
+versions/*/build/
+versions/*/bin/
+bm/dist/
